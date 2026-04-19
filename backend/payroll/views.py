@@ -1,3 +1,4 @@
+from django.db import transaction
 from rest_framework import viewsets, views, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -19,8 +20,12 @@ class EmployeeViewSet(viewsets.ModelViewSet):
     def bulk_create(self, request):
         serializer = self.get_serializer(data=request.data, many=True)
         if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
+            try:
+                with transaction.atomic():
+                    serializer.save()
+                return Response(serializer.data, status=status.HTTP_201_CREATED)
+            except Exception as e:
+                return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class IncidenceCatalogViewSet(viewsets.ModelViewSet):

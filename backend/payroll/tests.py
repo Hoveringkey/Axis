@@ -105,23 +105,19 @@ class EmployeeBulkCreateTests(APITestCase):
         self.assertEqual(Employee.objects.count(), 0)
 
     def test_bulk_create_duplicate_no_nomina(self):
-        """Test bulk creation fails when trying to create a duplicate no_nomina."""
-        # First, insert one employee
-        Employee.objects.create(
-            no_nomina="EMP-001",
-            nombre="Existente",
-            puesto="Operador",
-            horario_lv="08:00-18:00"
-        )
-        initial_count = Employee.objects.count()
+        """Test bulk creation rolls back when the payload contains a duplicate no_nomina."""
+        duplicate_employee = self.valid_employee_2.copy()
+        duplicate_employee["no_nomina"] = self.valid_employee_1["no_nomina"]
+        duplicate_employee["nombre"] = "Empleado Duplicado"
 
-        # Try to bulk insert with a payload containing the duplicate
-        payload = [self.valid_employee_1, self.valid_employee_2]
+        # The duplicate exists only within the request payload, so validation can pass
+        # and the transaction is exercised during save.
+        payload = [self.valid_employee_1, duplicate_employee]
         response = self.client.post(self.url, payload, format='json')
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        # Verify atomicity: count should remain the same
-        self.assertEqual(Employee.objects.count(), initial_count)
+        # Verify atomicity: no employees from the batch should be persisted
+        self.assertEqual(Employee.objects.count(), 0)
 
     def test_bulk_create_mixed_batch(self):
         """Test bulk creation fails for the entire batch if even one item is invalid."""

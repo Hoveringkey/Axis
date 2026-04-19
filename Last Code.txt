@@ -311,25 +311,6 @@ Private Function ObtenerMarcaDia(incArr As Variant, ByVal noNomKey As String, By
     Dim marcaPrincipal As String: marcaPrincipal = ""
     Dim incProps As Object
     
-    ' --- INICIO FIX RANGEDATOS 1 FILA ---
-    Dim numDims As Integer
-    On Error Resume Next
-    numDims = UBound(incArr, 2)
-    On Error GoTo 0
-
-    If numDims = 0 And LBound(incArr, 1) = 1 And UBound(incArr, 1) >= g_Config("INC_COL_TIPO") Then
-        ' Si es un array 1D (una fila), re-dimensionar a 2D (1 fila, N columnas)
-        Dim tempArr As Variant
-        ReDim tempArr(1 To 1, LBound(incArr, 1) To UBound(incArr, 1))
-        For i = LBound(incArr, 1) To UBound(incArr, 1)
-            tempArr(1, i) = incArr(i)
-        Next i
-        incArr = tempArr
-    ElseIf numDims = 0 Then
-        ' El array es 1D pero no es válido
-        Exit Function
-    End If
-    ' --- FIN FIX ---
 
     For i = LBound(incArr, 1) To UBound(incArr, 1)
         Dim incNominaKey As String, incNombre As String, esMatch As Boolean
@@ -412,26 +393,6 @@ Private Function CalcularHorasExtraSemana(incArr As Variant, ByVal noNomKey As S
         Exit Function
     End If
     
-    ' --- INICIO FIX RANGEDATOS 1 FILA ---
-    Dim numDims As Integer
-    On Error Resume Next
-    numDims = UBound(incArr, 2)
-    On Error GoTo 0
-
-    If numDims = 0 And LBound(incArr, 1) = 1 And UBound(incArr, 1) >= g_Config("INC_COL_TIPO") Then
-        ' Si es un array 1D (una fila), re-dimensionar a 2D (1 fila, N columnas)
-        Dim tempArr As Variant
-        ReDim tempArr(1 To 1, LBound(incArr, 1) To UBound(incArr, 1))
-        For i = LBound(incArr, 1) To UBound(incArr, 1)
-            tempArr(1, i) = incArr(i)
-        Next i
-        incArr = tempArr
-    ElseIf numDims = 0 Then
-        ' El array es 1D pero no es válido
-        CalcularHorasExtraSemana = 0
-        Exit Function
-    End If
-    ' --- FIN FIX ---
 
     Dim incProps As Object
     For i = LBound(incArr, 1) To UBound(incArr, 1)
@@ -478,26 +439,6 @@ Private Function CalcularIncentivosSemana(incArr As Variant, ByVal noNomKey As S
         Exit Function
     End If
 
-    ' --- INICIO FIX RANGEDATOS 1 FILA ---
-    Dim numDims As Integer
-    On Error Resume Next
-    numDims = UBound(incArr, 2)
-    On Error GoTo 0
-
-    If numDims = 0 And LBound(incArr, 1) = 1 And UBound(incArr, 1) >= g_Config("INC_COL_TIPO") Then
-        ' Si es un array 1D (una fila), re-dimensionar a 2D (1 fila, N columnas)
-        Dim tempArr As Variant
-        ReDim tempArr(1 To 1, LBound(incArr, 1) To UBound(incArr, 1))
-        For i = LBound(incArr, 1) To UBound(incArr, 1)
-            tempArr(1, i) = incArr(i)
-        Next i
-        incArr = tempArr
-    ElseIf numDims = 0 Then
-        ' El array es 1D pero no es válido
-        CalcularIncentivosSemana = 0
-        Exit Function
-    End If
-    ' --- FIN FIX ---
 
     For i = LBound(incArr, 1) To UBound(incArr, 1)
         Dim incNominaKey As String, incNombre As String, esMatch As Boolean
@@ -1261,25 +1202,6 @@ Private Function FindAltaDateInWeek(incArr As Variant, noNomKey As String, nombr
     If IsEmpty(incArr) Then Exit Function
     Dim i As Long, f As Date, incProps As Object
 
-    ' --- INICIO FIX RANGEDATOS 1 FILA ---
-    Dim numDims As Integer
-    On Error Resume Next
-    numDims = UBound(incArr, 2)
-    On Error GoTo 0
-
-    If numDims = 0 And LBound(incArr, 1) = 1 And UBound(incArr, 1) >= g_Config("INC_COL_TIPO") Then
-        ' Si es un array 1D (una fila), re-dimensionar a 2D (1 fila, N columnas)
-        Dim tempArr As Variant
-        ReDim tempArr(1 To 1, LBound(incArr, 1) To UBound(incArr, 1))
-        For i = LBound(incArr, 1) To UBound(incArr, 1)
-            tempArr(1, i) = incArr(i)
-        Next i
-        incArr = tempArr
-    ElseIf numDims = 0 Then
-        ' El array es 1D pero no es válido
-        Exit Function
-    End If
-    ' --- FIN FIX ---
 
     For i = LBound(incArr, 1) To UBound(incArr, 1)
         Dim incNominaKey As String: incNominaKey = NomKey(incArr(i, g_Config("INC_COL_NOM")))
@@ -1374,26 +1296,6 @@ Private Function CalcularHorasExtraDiaEspecifico(incArr As Variant, ByVal noNomK
     End If
     Dim incProps As Object
 
-    ' --- INICIO FIX RANGEDATOS 1 FILA ---
-    Dim numDims As Integer
-    On Error Resume Next
-    numDims = UBound(incArr, 2)
-    On Error GoTo 0
-
-    If numDims = 0 And LBound(incArr, 1) = 1 And UBound(incArr, 1) >= g_Config("INC_COL_TIPO") Then
-        ' Si es un array 1D (una fila), re-dimensionar a 2D (1 fila, N columnas)
-        Dim tempArr As Variant
-        ReDim tempArr(1 To 1, LBound(incArr, 1) To UBound(incArr, 1))
-        For i = LBound(incArr, 1) To UBound(incArr, 1)
-            tempArr(1, i) = incArr(i)
-        Next i
-        incArr = tempArr
-    ElseIf numDims = 0 Then
-        ' El array es 1D pero no es válido
-        CalcularHorasExtraDiaEspecifico = 0
-        Exit Function
-    End If
-    ' --- FIN FIX ---
 
     For i = LBound(incArr, 1) To UBound(incArr, 1)
         Dim incNominaKey As String, incNombre As String, esMatch As Boolean
@@ -1460,6 +1362,9 @@ End Function
 
 ' Archiva las incidencias y evita duplicados
 Private Sub ActualizarHistoricoIncidencias(incArr As Variant, histArr As Variant, ByVal semanaNum As Long, ByVal anioSel As Long, ByVal mondayDate As Date)
+    ' --- CORRECCIÓN DE BUG DE ÁMBITO (SCOPE) ---
+    Dim i As Long
+    ' --- FIN DE CORRECCIÓN ---
     Dim wsHist As Worksheet
     Set wsHist = ThisWorkbook.Worksheets(g_Config("SH_HIST"))
     Dim ultHist As Long: ultHist = LastUsedRow(wsHist)
@@ -1481,26 +1386,6 @@ Private Sub ActualizarHistoricoIncidencias(incArr As Variant, histArr As Variant
     
     If IsEmpty(incArr) Then Exit Sub
     
-    ' --- INICIO FIX RANGEDATOS 1 FILA ---
-    Dim numDims As Integer
-    On Error Resume Next
-    numDims = UBound(incArr, 2)
-    On Error GoTo 0
-
-    If numDims = 0 And LBound(incArr, 1) = 1 And UBound(incArr, 1) >= g_Config("INC_COL_TIPO") Then
-        ' Si es un array 1D (una fila), re-dimensionar a 2D (1 fila, N columnas)
-        Dim i As Long
-        Dim tempArr As Variant
-        ReDim tempArr(1 To 1, LBound(incArr, 1) To UBound(incArr, 1))
-        For i = LBound(incArr, 1) To UBound(incArr, 1)
-            tempArr(1, i) = incArr(i)
-        Next i
-        incArr = tempArr
-    ElseIf numDims = 0 Then
-        ' El array es 1D pero no es válido
-        Exit Sub
-    End If
-    ' --- FIN FIX ---
 
     ' 2. Añadir los nuevos registros (SOLO INCIDENCIAS REALES, NO HX)
     ultHist = LastUsedRow(wsHist)

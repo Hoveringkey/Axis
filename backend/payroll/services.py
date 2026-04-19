@@ -4,19 +4,26 @@ from decimal import Decimal
 from django.db.models import Sum
 from .models import Employee, IncidenceRecord, Loan, ExtraHourBank
 
-def calculate_payable_extra_hours(employee, target_week_num, target_year):
+def calculate_payable_extra_hours(employee, target_week_num, target_year, week_incidences=None):
     target_monday = datetime.date.fromisocalendar(target_year, target_week_num, 1)
     target_sunday = target_monday + timedelta(days=6)
     target_saturday = target_monday + timedelta(days=5)
     previous_saturday = target_monday - timedelta(days=2)
 
     # 2. Current Week HX (excluding Saturday)
-    current_week_hx = IncidenceRecord.objects.filter(
-        empleado=employee,
-        fecha__gte=target_monday,
-        fecha__lte=target_sunday,
-        tipo_incidencia__abreviatura='HX'
-    ).exclude(fecha=target_saturday).aggregate(total=Sum('cantidad'))['total'] or Decimal('0.00')
+    if week_incidences is not None:
+        current_week_hx = sum(
+            (inc.cantidad or Decimal('0.00') for inc in week_incidences
+             if inc.tipo_incidencia.abreviatura == 'HX' and inc.fecha != target_saturday),
+            Decimal('0.00')
+        )
+    else:
+        current_week_hx = IncidenceRecord.objects.filter(
+            empleado=employee,
+            fecha__gte=target_monday,
+            fecha__lte=target_sunday,
+            tipo_incidencia__abreviatura='HX'
+        ).exclude(fecha=target_saturday).aggregate(total=Sum('cantidad'))['total'] or Decimal('0.00')
 
     # 3. Deferred Saturday HX
     deferred_saturday_hx = IncidenceRecord.objects.filter(
@@ -56,7 +63,10 @@ def calculate_payroll_for_week(week_num):
     results = []
 
     for employee in employees:
-        week_incidences = IncidenceRecord.objects.filter(empleado=employee, semana_num=week_num)
+        week_incidences = list(IncidenceRecord.objects.filter(
+            empleado=employee,
+            semana_num=week_num
+        ).select_related('tipo_incidencia'))
         
         # 1. Weekly Bonus (Nocturno)
         weekly_bonus = Decimal('0.00')
@@ -67,8 +77,9 @@ def calculate_payroll_for_week(week_num):
             
         # Deduct $18 per physical absence (excluding bonuses/extra hours)
         physical_absences = sum(
-            inc.cantidad for inc in week_incidences 
-            if inc.tipo_incidencia.abreviatura not in ['HX', 'DA']
+            (inc.cantidad or Decimal('0.00') for inc in week_incidences
+            if inc.tipo_incidencia.abreviatura not in ['HX', 'DA']),
+            Decimal('0.00')
         )
         final_weekly_bonus = max(Decimal('0.00'), weekly_bonus - (weekly_bonus_deduction * Decimal(str(physical_absences))))
 
@@ -82,7 +93,7 @@ def calculate_payroll_for_week(week_num):
         monthly_bonus = Decimal('0.00') if past_month_incidences else Decimal('300.00')
 
         # 3. Abastecedor Incentive (DA)
-        da_count = week_incidences.filter(tipo_incidencia__abreviatura='DA').aggregate(total=Sum('cantidad'))['total'] or Decimal('0.00')
+        da_count = sum((inc.cantidad or Decimal('0.00') for inc in week_incidences if inc.tipo_incidencia.abreviatura == 'DA'), Decimal('0.00'))
         puesto_upper = employee.puesto.upper()
         horario_upper = employee.horario_lv.upper()
         
@@ -104,7 +115,7 @@ def calculate_payroll_for_week(week_num):
 
         # 4. Extra Hours
         target_year = datetime.date.today().year
-        hx_results = calculate_payable_extra_hours(employee, week_num, target_year)
+        hx_results = calculate_payable_extra_hours(employee, week_num, target_year, week_incidences=week_incidences)
         paid_extra_hours = hx_results['payable_hx']
 
         # 5. Loans
@@ -119,13 +130,13 @@ def calculate_payroll_for_week(week_num):
             if loan.abono_semanal > 0:
                 total_pagos = math.ceil(loan.monto_total / loan.abono_semanal)
                 
-            has_psg_or_i = week_incidences.filter(tipo_incidencia__abreviatura__in=['PSG', 'I']).exists()
+            has_psg_or_i = any(inc.tipo_incidencia.abreviatura in ['PSG', 'I'] for inc in week_incidences)
             if not has_psg_or_i and loan.pagos_realizados < total_pagos:
                 loan_deduction = loan.abono_semanal
                 
             # Block IV: PSG Rule
             workable_days = 5 if employee.puesto.strip().upper() == 'C' else 6
-            psg_count = week_incidences.filter(tipo_incidencia__abreviatura='PSG').aggregate(total=Sum('cantidad'))['total'] or Decimal('0.00')
+            psg_count = sum((inc.cantidad or Decimal('0.00') for inc in week_incidences if inc.tipo_incidencia.abreviatura == 'PSG'), Decimal('0.00'))
             if psg_count == Decimal(str(workable_days)):
                 loan_deduction = Decimal('0.00')
 
@@ -134,7 +145,7 @@ def calculate_payroll_for_week(week_num):
         for inc in week_incidences:
             abrev = inc.tipo_incidencia.abreviatura
             if abrev not in ['HX', 'DA']: # Exclude extra hours and abastecedor tokens
-                ausentismos_dict[abrev] = ausentismos_dict.get(abrev, Decimal('0.00')) + inc.cantidad
+                ausentismos_dict[abrev] = ausentismos_dict.get(abrev, Decimal('0.00')) + (inc.cantidad or Decimal('0.00'))
         
         ausentismos_parts = []
         for k, v in ausentismos_dict.items():

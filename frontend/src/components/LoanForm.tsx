@@ -36,8 +36,16 @@ const LoanForm: React.FC = () => {
     setIsLoading(true);
 
     try {
+      const selectedEmployee = employees.find(emp => emp.no_nomina === empleado || emp.nombre === empleado);
+      if (!selectedEmployee) {
+        setStatus({ type: 'error', message: 'Employee not found. Please select a valid employee.' });
+        setIsLoading(false);
+        return;
+      }
+      const empleadoId = selectedEmployee.no_nomina;
+
       await api.post('/api/payroll/loans/', {
-        empleado,
+        empleado: empleadoId,
         monto_total: parseFloat(montoTotal),
         abono_semanal: parseFloat(abonoSemanal),
         pagos_realizados: parseInt(pagosRealizados, 10),

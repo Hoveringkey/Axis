@@ -4,6 +4,28 @@ from decimal import Decimal
 from django.db.models import Sum
 from .models import Employee, IncidenceRecord, Loan, ExtraHourBank
 
+def is_monthly_bonus_week(target_year, target_week_num):
+    target_thursday = datetime.date.fromisocalendar(target_year, target_week_num, 4)
+    month_to_check = target_thursday.month
+    year_to_check = target_thursday.year
+    prev_month = month_to_check - 1 if month_to_check > 1 else 12
+    prev_year = year_to_check if month_to_check > 1 else year_to_check - 1
+    
+    if prev_month == 12:
+        next_month_date = datetime.date(prev_year + 1, 1, 1)
+    else:
+        next_month_date = datetime.date(prev_year, prev_month + 1, 1)
+    last_day = next_month_date - datetime.timedelta(days=1)
+    
+    # Mon-Thu (<= 3) -> Same week. Fri-Sun (> 3) -> Next week.
+    if last_day.weekday() <= 3:
+        payout_iso = last_day.isocalendar()
+    else:
+        next_week_date = last_day + datetime.timedelta(days=7 - last_day.weekday())
+        payout_iso = next_week_date.isocalendar()
+        
+    return target_year == payout_iso[0] and target_week_num == payout_iso[1]
+
 def calculate_payable_extra_hours(employee, target_week_num, target_year, week_incidences=None):
     target_monday = datetime.date.fromisocalendar(target_year, target_week_num, 1)
     target_sunday = target_monday + timedelta(days=6)
@@ -84,13 +106,17 @@ def calculate_payroll_for_week(week_num):
         final_weekly_bonus = max(Decimal('0.00'), weekly_bonus - (weekly_bonus_deduction * Decimal(str(physical_absences))))
 
         # 2. Monthly Bonus
-        past_month_incidences = IncidenceRecord.objects.filter(
-            empleado=employee, 
-            semana_num__gte=week_num-4,
-            semana_num__lt=week_num,
-            tipo_incidencia__aplica_bono_mensual=True
-        ).exists()
-        monthly_bonus = Decimal('0.00') if past_month_incidences else Decimal('300.00')
+        target_year = datetime.date.today().year
+        monthly_bonus = Decimal('0.00')
+        if is_monthly_bonus_week(target_year, week_num):
+            past_month_incidences = IncidenceRecord.objects.filter(
+                empleado=employee, 
+                semana_num__gte=week_num-4,
+                semana_num__lt=week_num,
+                tipo_incidencia__aplica_bono_mensual=True
+            ).exists()
+            if not past_month_incidences:
+                monthly_bonus = Decimal('300.00')
 
         # 3. Abastecedor Incentive (DA)
         da_count = sum((inc.cantidad or Decimal('0.00') for inc in week_incidences if inc.tipo_incidencia.abreviatura == 'DA'), Decimal('0.00'))

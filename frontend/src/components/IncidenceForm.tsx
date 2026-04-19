@@ -73,7 +73,14 @@ const IncidenceForm: React.FC = () => {
       const qty = parseFloat(cantidad);
       const promises = [];
 
-      const selectedEmployee = employees.find(emp => emp.no_nomina === empleado);
+      const selectedEmployee = employees.find(emp => emp.no_nomina === empleado || emp.nombre === empleado);
+      if (!selectedEmployee) {
+        setStatus({ type: 'error', message: 'Employee not found. Please select a valid employee.' });
+        setIsLoading(false);
+        return;
+      }
+      const empleadoId = selectedEmployee.no_nomina;
+
       const selectedCatalog = catalogs.find(c => c.id === parseInt(tipoIncidencia));
       const isNumeric = ['HX', 'HE', 'DA'].includes(selectedCatalog?.abreviatura || '');
 
@@ -107,7 +114,7 @@ const IncidenceForm: React.FC = () => {
             api.post('/api/payroll/incidence-records/', {
               fecha: dateString,
               semana_num: getISOWeekNumber(dateString),
-              empleado,
+              empleado: empleadoId,
               tipo_incidencia: parseInt(tipoIncidencia, 10),
               cantidad: currentQty,
             })
@@ -121,7 +128,7 @@ const IncidenceForm: React.FC = () => {
           api.post('/api/payroll/incidence-records/', {
             fecha,
             semana_num: getISOWeekNumber(fecha),
-            empleado,
+            empleado: empleadoId,
             tipo_incidencia: parseInt(tipoIncidencia, 10),
             cantidad: qty,
           })

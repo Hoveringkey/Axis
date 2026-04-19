@@ -97,7 +97,7 @@ const Dashboard: React.FC = () => {
       </nav>
 
       <main className="dashboard-content">
-        {activeTab === 'directory' && (
+        <div style={{ display: activeTab === 'directory' ? 'block' : 'none' }}>
           <div className="tab-pane fade-in">
             <h2>Employee Directory</h2>
             {error && <div className="dashboard-error">{error}</div>}
@@ -112,27 +112,27 @@ const Dashboard: React.FC = () => {
               />
             </div>
           </div>
-        )}
+        </div>
 
-        {activeTab === 'incidence' && (
+        <div style={{ display: activeTab === 'incidence' ? 'block' : 'none' }}>
           <div className="tab-pane fade-in form-wrapper">
             <IncidenceForm />
           </div>
-        )}
+        </div>
 
-        {activeTab === 'loan' && (
+        <div style={{ display: activeTab === 'loan' ? 'block' : 'none' }}>
           <div className="tab-pane fade-in form-wrapper">
             <LoanForm />
           </div>
-        )}
+        </div>
 
-        {activeTab === 'calculate' && (
+        <div style={{ display: activeTab === 'calculate' ? 'block' : 'none' }}>
           <PayrollReport />
-        )}
+        </div>
 
-        {activeTab === 'import' && (
+        <div style={{ display: activeTab === 'import' ? 'block' : 'none' }}>
           <BulkDataMapper />
-        )}
+        </div>
       </main>
     </div>
   );

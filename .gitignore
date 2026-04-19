@@ -1,0 +1,75 @@
+# ------------------------------------------------------------------------------
+# Backend: Python / Django
+# ------------------------------------------------------------------------------
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+venv/
+env/
+.venv/
+.env/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Environment variables
+.env
+.env.local
+
+# Django stuff
+db.sqlite3
+db.sqlite3-journal
+*.log
+local_settings.py
+
+# ------------------------------------------------------------------------------
+# Frontend: React / TypeScript / Node.js
+# ------------------------------------------------------------------------------
+
+# Node modules
+node_modules/
+
+# Production builds
+dist/
+build/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Diagnostic reports (https://nodejs.org/api/report.html)
+report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# ------------------------------------------------------------------------------
+# OS and IDE files
+# ------------------------------------------------------------------------------
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*.sublime-workspace
+*.sublime-project

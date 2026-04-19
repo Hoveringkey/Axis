@@ -72,7 +72,7 @@ class EmployeeBulkCreateTests(APITestCase):
         self.assertEqual(emp3.horario_s, "")
 
         emp4 = Employee.objects.get(no_nomina="EMP-004")
-        self.assertTrue(emp4.horario_s in [None, ""])
+        self.assertIn(emp4.horario_s, [None, ""])
 
     def test_bulk_create_missing_mandatory_fields(self):
         """Test bulk creation fails when mandatory fields are missing."""

@@ -55,5 +55,21 @@ class CalculatePayrollView(views.APIView):
         except ValueError:
             return Response({'error': 'semana_num must be an integer'}, status=status.HTTP_400_BAD_REQUEST)
 
-        results = calculate_payroll_for_week(week_num)
+        # Preview action, strict dry_run to prevent state mutation
+        results = calculate_payroll_for_week(week_num, dry_run=True)
+        return Response({'results': results}, status=status.HTTP_200_OK)
+
+class ClosePayrollView(views.APIView):
+    def post(self, request):
+        week_num = request.data.get('semana_num')
+        if not week_num:
+            return Response({'error': 'semana_num is required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            week_num = int(week_num)
+        except ValueError:
+            return Response({'error': 'semana_num must be an integer'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Commit action, mutates ExtraHourBank and explicitly performs DB writes
+        results = calculate_payroll_for_week(week_num, dry_run=False)
         return Response({'results': results}, status=status.HTTP_200_OK)

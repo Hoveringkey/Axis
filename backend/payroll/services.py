@@ -5,28 +5,16 @@ from django.db.models import Sum
 from .models import Employee, IncidenceRecord, Loan, ExtraHourBank
 
 def is_monthly_bonus_week(target_year, target_week_num):
-    target_thursday = datetime.date.fromisocalendar(target_year, target_week_num, 4)
-    month_to_check = target_thursday.month
-    year_to_check = target_thursday.year
-    prev_month = month_to_check - 1 if month_to_check > 1 else 12
-    prev_year = year_to_check if month_to_check > 1 else year_to_check - 1
+    # Retrieve the exact Friday of the target week (ISO day 5)
+    target_friday = datetime.date.fromisocalendar(target_year, target_week_num, 5)
     
-    if prev_month == 12:
-        next_month_date = datetime.date(prev_year + 1, 1, 1)
-    else:
-        next_month_date = datetime.date(prev_year, prev_month + 1, 1)
-    last_day = next_month_date - datetime.timedelta(days=1)
+    # Retrieve the Friday of the previous week safely using timedelta
+    prev_friday = target_friday - datetime.timedelta(weeks=1)
     
-    # Mon-Thu (<= 3) -> Same week. Fri-Sun (> 3) -> Next week.
-    if last_day.weekday() <= 3:
-        payout_iso = last_day.isocalendar()
-    else:
-        next_week_date = last_day + datetime.timedelta(days=7 - last_day.weekday())
-        payout_iso = next_week_date.isocalendar()
-        
-    return target_year == payout_iso[0] and target_week_num == payout_iso[1]
+    # A bonus week triggers strictly when the boundary Friday lands in a new month
+    return target_friday.month != prev_friday.month
 
-def calculate_payable_extra_hours(employee, target_week_num, target_year, week_incidences=None):
+def calculate_payable_extra_hours(employee, target_week_num, target_year, week_incidences=None, dry_run=True):
     target_monday = datetime.date.fromisocalendar(target_year, target_week_num, 1)
     target_sunday = target_monday + timedelta(days=6)
     target_saturday = target_monday + timedelta(days=5)
@@ -64,15 +52,16 @@ def calculate_payable_extra_hours(employee, target_week_num, target_year, week_i
     remnant = total_hx - Decimal('9.00')
 
     # 6. State Mutation
-    if remnant > Decimal('0.00'):
-        if bank_record:
-            bank_record.horas_deuda = remnant
-            bank_record.save()
+    if not dry_run:
+        if remnant > Decimal('0.00'):
+            if bank_record:
+                bank_record.horas_deuda = remnant
+                bank_record.save()
+            else:
+                ExtraHourBank.objects.create(empleado=employee, horas_deuda=remnant)
         else:
-            ExtraHourBank.objects.create(empleado=employee, horas_deuda=remnant)
-    else:
-        if bank_record:
-            bank_record.delete()
+            if bank_record:
+                bank_record.delete()
 
     return {
         'total_hx': total_hx,
@@ -80,7 +69,7 @@ def calculate_payable_extra_hours(employee, target_week_num, target_year, week_i
         'bank_deposit': max(Decimal('0.00'), remnant)
     }
 
-def calculate_payroll_for_week(week_num):
+def calculate_payroll_for_week(week_num, dry_run=True):
     employees = Employee.objects.all()
     results = []
 
@@ -106,13 +95,28 @@ def calculate_payroll_for_week(week_num):
         final_weekly_bonus = max(Decimal('0.00'), weekly_bonus - (weekly_bonus_deduction * Decimal(str(physical_absences))))
 
         # 2. Monthly Bonus
-        target_year = datetime.date.today().year
+        # Dynamically determine the correct target_year to handle year boundaries
+        today_iso = datetime.date.today().isocalendar()
+        current_year = today_iso[0]
+        current_week = today_iso[1]
+        
+        if week_num > 50 and current_week < 10:
+            target_year = current_year - 1
+        elif week_num < 10 and current_week > 50:
+            target_year = current_year + 1
+        else:
+            target_year = current_year
+
         monthly_bonus = Decimal('0.00')
         if is_monthly_bonus_week(target_year, week_num):
+            # Convert ISO week to absolute date range for a safe 4-week lookback
+            target_monday = datetime.date.fromisocalendar(target_year, week_num, 1)
+            lookback_monday = target_monday - datetime.timedelta(weeks=4)
+            
             past_month_incidences = IncidenceRecord.objects.filter(
                 empleado=employee, 
-                semana_num__gte=week_num-4,
-                semana_num__lt=week_num,
+                fecha__gte=lookback_monday,
+                fecha__lt=target_monday,
                 tipo_incidencia__aplica_bono_mensual=True
             ).exists()
             if not past_month_incidences:
@@ -140,8 +144,8 @@ def calculate_payroll_for_week(week_num):
         }
 
         # 4. Extra Hours
-        target_year = datetime.date.today().year
-        hx_results = calculate_payable_extra_hours(employee, week_num, target_year, week_incidences=week_incidences)
+        # Reusing the dynamically calculated target_year from the Monthly Bonus block
+        hx_results = calculate_payable_extra_hours(employee, week_num, target_year, week_incidences=week_incidences, dry_run=dry_run)
         paid_extra_hours = hx_results['payable_hx']
 
         # 5. Loans

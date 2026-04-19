@@ -6,7 +6,8 @@ from .views import (
     IncidenceRecordViewSet,
     LoanViewSet,
     ExtraHourBankViewSet,
-    CalculatePayrollView
+    CalculatePayrollView,
+    ClosePayrollView
 )
 
 router = DefaultRouter()
@@ -19,4 +20,5 @@ router.register(r'extra-hour-banks', ExtraHourBankViewSet)
 urlpatterns = [
     path('', include(router.urls)),
     path('calculate/', CalculatePayrollView.as_view(), name='calculate_payroll'),
+    path('close/', ClosePayrollView.as_view(), name='close_payroll'),
 ]

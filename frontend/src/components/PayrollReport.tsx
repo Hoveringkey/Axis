@@ -8,11 +8,14 @@ const PayrollReport: React.FC = () => {
   const [calcResults, setCalcResults] = useState<any[]>([]);
   const [calcError, setCalcError] = useState<string | null>(null);
   const [isCalculating, setIsCalculating] = useState(false);
+  const [isClosing, setIsClosing] = useState(false);
+  const [isClosed, setIsClosed] = useState(false);
 
   const handleCalculate = async () => {
     if (!calcWeekNum) return;
     setIsCalculating(true);
     setCalcError(null);
+    setIsClosed(false); // Reset closure state on new query
     try {
       const response = await api.post('/api/payroll/calculate/', {
         semana_num: parseInt(calcWeekNum, 10)
@@ -22,6 +25,22 @@ const PayrollReport: React.FC = () => {
       setCalcError(err.response?.data?.detail || 'Calculation failed.');
     } finally {
       setIsCalculating(false);
+    }
+  };
+
+  const handleClosePayroll = async () => {
+    if (!calcWeekNum) return;
+    setIsClosing(true);
+    setCalcError(null);
+    try {
+      await api.post('/api/payroll/close/', {
+        semana_num: parseInt(calcWeekNum, 10)
+      });
+      setIsClosed(true);
+    } catch (err: any) {
+      setCalcError(err.response?.data?.detail || 'Closing payroll failed.');
+    } finally {
+      setIsClosing(false);
     }
   };
 
@@ -150,6 +169,27 @@ const PayrollReport: React.FC = () => {
             style={{ margin: 0, padding: '0.5rem 1.25rem' }}
           >
             {isCalculating ? 'Processing...' : 'Run Report'}
+          </button>
+          
+          <button
+            onClick={handleClosePayroll}
+            disabled={isClosing || calcResults.length === 0 || isClosed || isCalculating}
+            style={{ 
+              margin: 0, 
+              padding: '0.5rem 1.25rem',
+              backgroundColor: isClosed ? '#10b981' : '#0ea5e9', // Deep green for success, Deep blue for action
+              color: 'white',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: (isClosing || calcResults.length === 0 || isClosed || isCalculating) ? 'not-allowed' : 'pointer',
+              opacity: (calcResults.length === 0 && !isClosed) ? 0.5 : 1,
+              fontWeight: 500,
+              boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+              transition: 'all 0.2s ease'
+            }}
+            title={calcResults.length === 0 ? "Run a report first to enable closing" : ""}
+          >
+            {isClosing ? 'Closing...' : isClosed ? 'Closed Successfully' : 'Close Payroll'}
           </button>
         </div>
       </div>

@@ -30,7 +30,6 @@ const Dashboard: React.FC = () => {
   const fetchEmployees = async () => {
     try {
       const response = await api.get('/api/payroll/employees/');
-      console.log("Grid Data mapped:", response.data);
       setEmployees(response.data);
       setError(null);
     } catch (err: any) {

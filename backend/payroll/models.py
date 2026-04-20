@@ -1,11 +1,17 @@
 from django.db import models
 
+class Schedule(models.Model):
+    time_range = models.CharField(max_length=100, unique=True)
+
+    def __str__(self):
+        return self.time_range
+
 class Employee(models.Model):
     no_nomina = models.CharField(max_length=50, primary_key=True)
     nombre = models.CharField(max_length=255)
     puesto = models.CharField(max_length=255)
-    horario_lv = models.CharField(max_length=100)
-    horario_s = models.CharField(max_length=100, blank=True, null=True)
+    horario_lv = models.ForeignKey(Schedule, on_delete=models.SET_NULL, null=True, related_name='employees_lv')
+    horario_s = models.ForeignKey(Schedule, on_delete=models.SET_NULL, null=True, blank=True, related_name='employees_s')
 
     def __str__(self):
         return f"{self.no_nomina} - {self.nombre}"

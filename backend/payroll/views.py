@@ -13,7 +13,7 @@ from .serializers import (
 from .services import calculate_payroll_for_week
 
 class EmployeeViewSet(viewsets.ModelViewSet):
-    queryset = Employee.objects.all()
+    queryset = Employee.objects.select_related('horario_lv', 'horario_s').all()
     serializer_class = EmployeeSerializer
 
     @action(detail=False, methods=['post'], url_path='bulk-create')

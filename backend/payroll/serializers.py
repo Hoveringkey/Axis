@@ -1,13 +1,23 @@
 from rest_framework import serializers
-from .models import Employee, IncidenceCatalog, IncidenceRecord, Loan, ExtraHourBank
+from .models import Employee, IncidenceCatalog, IncidenceRecord, Loan, ExtraHourBank, Schedule
 
 class EmployeeSerializer(serializers.ModelSerializer):
+    horario_lv = serializers.SlugRelatedField(
+        slug_field='time_range',
+        queryset=Schedule.objects.all(),
+        allow_null=True,
+        required=False
+    )
+    horario_s = serializers.SlugRelatedField(
+        slug_field='time_range',
+        queryset=Schedule.objects.all(),
+        allow_null=True,
+        required=False
+    )
+
     class Meta:
         model = Employee
         fields = '__all__'
-        extra_kwargs = {
-            'horario_s': {'required': False, 'allow_blank': True}
-        }
 
 class IncidenceCatalogSerializer(serializers.ModelSerializer):
     class Meta:

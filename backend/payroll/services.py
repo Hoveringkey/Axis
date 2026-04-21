@@ -1,8 +1,10 @@
 import datetime
 from datetime import timedelta
 from decimal import Decimal
-from django.db.models import Sum
-from .models import Employee, IncidenceRecord, Loan, ExtraHourBank
+from collections import defaultdict
+from django.db.models import Sum, Q
+from django.db import transaction
+from .models import Employee, IncidenceRecord, Loan, ExtraHourBank, IncidenceCatalog
 
 def is_monthly_bonus_week(target_year, target_week_num):
     # Retrieve the exact Friday of the target week (ISO day 5)
@@ -14,36 +16,21 @@ def is_monthly_bonus_week(target_year, target_week_num):
     # A bonus week triggers strictly when the boundary Friday lands in a new month
     return target_friday.month != prev_friday.month
 
-def calculate_payable_extra_hours(employee, target_week_num, target_year, week_incidences=None, dry_run=True):
+def calculate_payable_extra_hours(employee, target_week_num, target_year, week_incidences=None, deferred_saturday_hx=Decimal('0.00'), bank_record=None, dry_run=True):
     target_monday = datetime.date.fromisocalendar(target_year, target_week_num, 1)
     target_sunday = target_monday + timedelta(days=6)
     target_saturday = target_monday + timedelta(days=5)
-    previous_saturday = target_monday - timedelta(days=2)
 
     # 2. Current Week HX (excluding Saturday)
-    if week_incidences is not None:
-        current_week_hx = sum(
-            (inc.cantidad or Decimal('0.00') for inc in week_incidences
-             if inc.tipo_incidencia.abreviatura == 'HX' and inc.fecha != target_saturday),
-            Decimal('0.00')
-        )
-    else:
-        current_week_hx = IncidenceRecord.objects.filter(
-            empleado=employee,
-            fecha__gte=target_monday,
-            fecha__lte=target_sunday,
-            tipo_incidencia__abreviatura='HX'
-        ).exclude(fecha=target_saturday).aggregate(total=Sum('cantidad'))['total'] or Decimal('0.00')
+    current_week_hx = sum(
+        (inc.cantidad or Decimal('0.00') for inc in (week_incidences or [])
+         if inc.tipo_incidencia.abreviatura == 'HX' and inc.fecha != target_saturday),
+        Decimal('0.00')
+    )
 
-    # 3. Deferred Saturday HX
-    deferred_saturday_hx = IncidenceRecord.objects.filter(
-        empleado=employee,
-        fecha=previous_saturday,
-        tipo_incidencia__abreviatura='HX'
-    ).aggregate(total=Sum('cantidad'))['total'] or Decimal('0.00')
-
+    # 3. Deferred Saturday HX is now passed in
+    
     # 4. Bank Balance
-    bank_record = ExtraHourBank.objects.filter(empleado=employee).first()
     bank_balance = bank_record.horas_deuda if bank_record else Decimal('0.00')
 
     # 5. Mathematical limits
@@ -51,38 +38,89 @@ def calculate_payable_extra_hours(employee, target_week_num, target_year, week_i
     payable_hx = min(total_hx, Decimal('9.00'))
     remnant = total_hx - Decimal('9.00')
 
-    # 6. State Mutation
+    # 6. State Mutation Instructions
+    mutation = None
     if not dry_run:
         if remnant > Decimal('0.00'):
             if bank_record:
-                bank_record.horas_deuda = remnant
-                bank_record.save()
+                mutation = {'action': 'update', 'horas_deuda': remnant, 'record': bank_record}
             else:
-                ExtraHourBank.objects.create(empleado=employee, horas_deuda=remnant)
+                mutation = {'action': 'create', 'horas_deuda': remnant, 'employee': employee}
         else:
             if bank_record:
-                bank_record.delete()
+                mutation = {'action': 'delete', 'record': bank_record}
 
     return {
         'total_hx': total_hx,
         'payable_hx': payable_hx,
-        'bank_deposit': max(Decimal('0.00'), remnant)
+        'bank_deposit': max(Decimal('0.00'), remnant),
+        'mutation': mutation
     }
 
 def calculate_payroll_for_week(week_num, dry_run=True):
-    employees = Employee.objects.all()
+    # Determine the correct target_year to handle year boundaries
+    today_iso = datetime.date.today().isocalendar()
+    current_year = today_iso[0]
+    current_week = today_iso[1]
+    
+    if week_num > 50 and current_week < 10:
+        target_year = current_year - 1
+    elif week_num < 10 and current_week > 50:
+        target_year = current_year + 1
+    else:
+        target_year = current_year
+
+    target_monday = datetime.date.fromisocalendar(target_year, week_num, 1)
+    previous_saturday = target_monday - timedelta(days=2)
+    lookback_monday = target_monday - timedelta(weeks=4)
+
+    # Trip 1: Employees
+    employees = Employee.objects.select_related('horario_lv', 'horario_s').all()
+    
+    # Trip 2 & 3: Loans & Banks
+    loans_dict = {loan.empleado_id: loan for loan in Loan.objects.all()}
+    banks_dict = {bank.empleado_id: bank for bank in ExtraHourBank.objects.all()}
+    
+    # Trip 4: IncidenceCatalog cache
+    catalog_cache = {cat.id: cat for cat in IncidenceCatalog.objects.all()}
+
+    # Trip 5: Query A - Current week incidences
+    current_week_incidences = IncidenceRecord.objects.filter(
+        semana_num=week_num
+    ).select_related('tipo_incidencia')
+    
+    weekly_incidences_map = defaultdict(list)
+    for inc in current_week_incidences:
+        weekly_incidences_map[inc.empleado_id].append(inc)
+
+    # Trip 6: Query B - Lookback incidences (for monthly bonus AND deferred saturday HX)
+    lookback_incidences = IncidenceRecord.objects.filter(
+        Q(fecha__gte=lookback_monday, fecha__lt=target_monday, tipo_incidencia__aplica_bono_mensual=True) |
+        Q(fecha=previous_saturday, tipo_incidencia__abreviatura='HX')
+    ).select_related('tipo_incidencia')
+    
+    history_map = defaultdict(list)
+    deferred_hx_map = defaultdict(Decimal)
+    
+    for inc in lookback_incidences:
+        if inc.tipo_incidencia.aplica_bono_mensual:
+            history_map[inc.empleado_id].append(inc)
+        if inc.fecha == previous_saturday and inc.tipo_incidencia.abreviatura == 'HX':
+            deferred_hx_map[inc.empleado_id] += (inc.cantidad or Decimal('0.00'))
+
     results = []
+    banks_to_create = []
+    banks_to_update = []
+    banks_to_delete = []
 
     for employee in employees:
-        week_incidences = list(IncidenceRecord.objects.filter(
-            empleado=employee,
-            semana_num=week_num
-        ).select_related('tipo_incidencia'))
+        week_incidences = weekly_incidences_map.get(employee.no_nomina, [])
         
         # 1. Weekly Bonus (Nocturno)
         weekly_bonus = Decimal('0.00')
         weekly_bonus_deduction = Decimal('0.00')
-        if employee.horario_lv.strip() == '21:30 - 06:00':
+        horario_str = employee.horario_lv.time_range.strip() if employee.horario_lv else ''
+        if horario_str == '21:30 - 06:00':
             weekly_bonus = Decimal('126.00')
             weekly_bonus_deduction = Decimal('18.00')
             
@@ -95,37 +133,16 @@ def calculate_payroll_for_week(week_num, dry_run=True):
         final_weekly_bonus = max(Decimal('0.00'), weekly_bonus - (weekly_bonus_deduction * Decimal(str(physical_absences))))
 
         # 2. Monthly Bonus
-        # Dynamically determine the correct target_year to handle year boundaries
-        today_iso = datetime.date.today().isocalendar()
-        current_year = today_iso[0]
-        current_week = today_iso[1]
-        
-        if week_num > 50 and current_week < 10:
-            target_year = current_year - 1
-        elif week_num < 10 and current_week > 50:
-            target_year = current_year + 1
-        else:
-            target_year = current_year
-
         monthly_bonus = Decimal('0.00')
         if is_monthly_bonus_week(target_year, week_num):
-            # Convert ISO week to absolute date range for a safe 4-week lookback
-            target_monday = datetime.date.fromisocalendar(target_year, week_num, 1)
-            lookback_monday = target_monday - datetime.timedelta(weeks=4)
-            
-            past_month_incidences = IncidenceRecord.objects.filter(
-                empleado=employee, 
-                fecha__gte=lookback_monday,
-                fecha__lt=target_monday,
-                tipo_incidencia__aplica_bono_mensual=True
-            ).exists()
-            if not past_month_incidences:
+            has_bad_incidences = len(history_map.get(employee.no_nomina, [])) > 0
+            if not has_bad_incidences:
                 monthly_bonus = Decimal('300.00')
 
         # 3. Abastecedor Incentive (DA)
         da_count = sum((inc.cantidad or Decimal('0.00') for inc in week_incidences if inc.tipo_incidencia.abreviatura == 'DA'), Decimal('0.00'))
-        puesto_upper = employee.puesto.upper()
-        horario_upper = employee.horario_lv.upper()
+        puesto_upper = employee.puesto.strip().upper() if employee.puesto else ''
+        horario_upper = employee.horario_lv.time_range.upper() if employee.horario_lv else ''
         
         target_da = Decimal('6.00')
         if 'C' in puesto_upper or 'NOCHE' in horario_upper or '22:00' in horario_upper:
@@ -144,13 +161,35 @@ def calculate_payroll_for_week(week_num, dry_run=True):
         }
 
         # 4. Extra Hours
-        # Reusing the dynamically calculated target_year from the Monthly Bonus block
-        hx_results = calculate_payable_extra_hours(employee, week_num, target_year, week_incidences=week_incidences, dry_run=dry_run)
+        bank_record = banks_dict.get(employee.no_nomina)
+        deferred_saturday_hx = deferred_hx_map.get(employee.no_nomina, Decimal('0.00'))
+        
+        hx_results = calculate_payable_extra_hours(
+            employee, 
+            week_num, 
+            target_year, 
+            week_incidences=week_incidences, 
+            deferred_saturday_hx=deferred_saturday_hx,
+            bank_record=bank_record, 
+            dry_run=dry_run
+        )
         paid_extra_hours = hx_results['payable_hx']
+        
+        # Accumulate mutations for ExtraHourBank
+        if not dry_run and hx_results.get('mutation'):
+            mut = hx_results['mutation']
+            if mut['action'] == 'create':
+                banks_to_create.append(ExtraHourBank(empleado=mut['employee'], horas_deuda=mut['horas_deuda']))
+            elif mut['action'] == 'update':
+                rec = mut['record']
+                rec.horas_deuda = mut['horas_deuda']
+                banks_to_update.append(rec)
+            elif mut['action'] == 'delete':
+                banks_to_delete.append(mut['record'])
 
         # 5. Loans
         import math
-        loan = Loan.objects.filter(empleado=employee).first()
+        loan = loans_dict.get(employee.no_nomina)
         loan_deduction = Decimal('0.00')
         pagos_realizados = 0
         total_pagos = 0
@@ -165,7 +204,8 @@ def calculate_payroll_for_week(week_num, dry_run=True):
                 loan_deduction = loan.abono_semanal
                 
             # Block IV: PSG Rule
-            workable_days = 5 if employee.puesto.strip().upper() == 'C' else 6
+            puesto_upper_psg = employee.puesto.strip().upper() if employee.puesto else ''
+            workable_days = 5 if puesto_upper_psg == 'C' else 6
             psg_count = sum((inc.cantidad or Decimal('0.00') for inc in week_incidences if inc.tipo_incidencia.abreviatura == 'PSG'), Decimal('0.00'))
             if psg_count == Decimal(str(workable_days)):
                 loan_deduction = Decimal('0.00')
@@ -204,5 +244,15 @@ def calculate_payroll_for_week(week_num, dry_run=True):
                 'pagos_realizados': pagos_realizados,
                 'total_pagos': total_pagos
             })
+
+    # Bulk Execute Mutations
+    if not dry_run:
+        with transaction.atomic():
+            if banks_to_create:
+                ExtraHourBank.objects.bulk_create(banks_to_create)
+            if banks_to_update:
+                ExtraHourBank.objects.bulk_update(banks_to_update, ['horas_deuda'])
+            if banks_to_delete:
+                ExtraHourBank.objects.filter(id__in=[b.id for b in banks_to_delete]).delete()
 
     return results

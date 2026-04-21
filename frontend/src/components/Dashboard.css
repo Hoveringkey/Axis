@@ -1,72 +1,13 @@
+/* ============================================
+   DASHBOARD.CSS — Shared form & component styles
+   (IncidenceForm, LoanForm, PayrollReport, BulkDataMapper)
+   ============================================ */
+
+/* ---- Container ---- */
 .dashboard-container {
   min-height: 100vh;
-  background-color: #f8fafc;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-}
-
-.navbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1rem 2rem;
-  background: white;
-  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
-  position: sticky;
-  top: 0;
-  z-index: 10;
-}
-
-.navbar-brand {
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: #1e293b;
-  background: linear-gradient(to right, #3b82f6, #8b5cf6);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
-
-.navbar-tabs {
-  display: flex;
-  gap: 0.5rem;
-}
-
-.tab-button {
-  padding: 0.5rem 1rem;
-  background: transparent;
-  border: none;
-  border-radius: 8px;
-  color: #64748b;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.tab-button:hover {
-  background: #f1f5f9;
-  color: #0f172a;
-}
-
-.tab-button.active {
-  background: #eff6ff;
-  color: #2563eb;
-  font-weight: 600;
-}
-
-.logout-button {
-  padding: 0.5rem 1.25rem;
-  background-color: white;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  color: #475569;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.logout-button:hover {
-  background-color: #fef2f2;
-  color: #ef4444;
-  border-color: #fca5a5;
+  background: var(--bg-primary);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
 .dashboard-content {
@@ -76,7 +17,7 @@
 }
 
 .dashboard-content h2 {
-  color: #1e293b;
+  color: var(--text-main);
   margin-top: 0;
   margin-bottom: 1.5rem;
   font-size: 1.875rem;
@@ -84,25 +25,26 @@
 }
 
 .dashboard-error {
-  padding: 1rem;
-  background-color: #fef2f2;
-  border: 1px solid #fecaca;
-  color: #ef4444;
+  padding: 0.875rem 1rem;
+  background: var(--error-bg);
+  border: 1px solid var(--error-border);
+  color: var(--error-text);
   border-radius: 8px;
   margin-bottom: 1.5rem;
+  font-size: 0.875rem;
 }
 
 /* Animations */
 .fade-in {
-  animation: fadeIn 0.3s ease-in-out;
+  animation: fadeIn 0.25s ease-in-out;
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
-/* Form Styles */
+/* ---- Form Wrappers ---- */
 .form-wrapper {
   display: flex;
   justify-content: center;
@@ -110,35 +52,37 @@
 }
 
 .form-card {
-  background: white;
-  border-radius: 16px;
-  padding: 2.5rem;
+  background: var(--card-bg);
+  border-radius: 14px;
+  padding: 2.25rem;
   width: 100%;
-  max-width: 500px;
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.01);
-  border: 1px solid #f1f5f9;
+  max-width: 520px;
+  box-shadow: var(--shadow-md);
+  border: 1px solid var(--border-color);
 }
 
 .form-header {
-  margin-bottom: 2rem;
+  margin-bottom: 1.75rem;
 }
 
 .form-header h3 {
-  margin: 0 0 0.5rem 0;
-  font-size: 1.5rem;
-  color: #0f172a;
+  margin: 0 0 0.4rem;
+  font-size: 1.35rem;
+  color: var(--text-main);
+  font-weight: 700;
 }
 
 .form-header p {
   margin: 0;
-  color: #64748b;
-  font-size: 0.95rem;
+  color: var(--text-muted);
+  font-size: 0.9rem;
 }
 
+/* ---- Form Fields ---- */
 .data-form {
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
+  gap: 1.125rem;
 }
 
 .form-row {
@@ -153,111 +97,129 @@
 .form-group {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.4rem;
 }
 
 .form-group label {
-  font-size: 0.875rem;
+  font-size: 0.75rem;
   font-weight: 600;
-  color: #334155;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .form-group input,
 .form-group select {
-  padding: 0.875rem 1rem;
-  background: #f8fafc;
-  border: 1px solid #cbd5e1;
+  padding: 0.75rem 0.875rem;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
-  color: #0f172a;
-  font-size: 1rem;
-  transition: all 0.2s ease;
+  color: var(--text-main);
+  font-size: 0.9rem;
+  font-family: 'Inter', sans-serif;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
   outline: none;
 }
 
 .form-group input:focus,
 .form-group select:focus {
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-  background: white;
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.12);
+  background: var(--card-bg);
 }
 
+.form-group input::placeholder {
+  color: var(--border-color);
+}
+
+/* ---- Submit Button ---- */
 .submit-button {
-  margin-top: 1rem;
-  padding: 1rem;
-  background: linear-gradient(to right, #3b82f6, #6366f1);
+  margin-top: 0.75rem;
+  padding: 0.85rem 1.25rem;
+  background: var(--accent-primary);
   border: none;
   border-radius: 8px;
-  color: white;
-  font-size: 1rem;
+  color: var(--color-white);
+  font-size: 0.9rem;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: 0 4px 14px 0 rgba(59, 130, 246, 0.3);
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px var(--accent-shadow);
+  font-family: inherit;
 }
 
 .submit-button:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4);
+  background: var(--accent-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px var(--accent-shadow);
 }
 
 .submit-button:disabled {
-  opacity: 0.7;
+  opacity: 0.55;
   cursor: not-allowed;
   transform: none;
-  background: #94a3b8;
+  background: var(--text-muted);
+  box-shadow: none;
 }
 
+/* ---- Status Messages ---- */
 .status-message {
-  padding: 1rem;
+  padding: 0.8rem 1rem;
   border-radius: 8px;
-  margin-bottom: 1.5rem;
-  font-size: 0.95rem;
+  margin-bottom: 1.25rem;
+  font-size: 0.875rem;
+  font-weight: 500;
 }
 
 .status-message.success {
-  background-color: #ecfdf5;
-  color: #059669;
-  border: 1px solid #a7f3d0;
+  background: var(--success-bg);
+  color: var(--success-text);
+  border: 1px solid var(--success-border);
 }
 
 .status-message.error {
-  background-color: #fef2f2;
-  color: #dc2626;
-  border: 1px solid #fecaca;
+  background: var(--error-bg);
+  color: var(--error-text);
+  border: 1px solid var(--error-border);
 }
 
-/* Calculation Controls */
+/* ---- Calc / Report Controls ---- */
 .calc-controls {
   display: flex;
   align-items: flex-end;
   gap: 1rem;
-  background: white;
-  padding: 1.5rem;
-  border-radius: 12px;
-  box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
-  margin-bottom: 2rem;
+  background: var(--card-bg);
+  padding: 1.25rem 1.5rem;
+  border-radius: 10px;
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow-xs);
+  margin-bottom: 1.75rem;
 }
 
-.mt-4 {
-  margin-top: 1.5rem;
-}
+.mt-4 { margin-top: 1.5rem; }
+.mb-2 { margin-bottom: 0.5rem; }
+.mb-4 { margin-bottom: 1rem; }
 
-.mb-2 {
-  margin-bottom: 0.5rem;
-}
-
-/* Customizing AG Grid Alpine Theme */
+/* ---- AG Grid — light slate overrides ---- */
 .ag-theme-alpine {
-  --ag-header-background-color: #f8fafc;
-  --ag-header-foreground-color: #475569;
-  --ag-borders: solid 1px #e2e8f0;
-  --ag-row-hover-color: #f1f5f9;
-  --ag-selected-row-background-color: #eff6ff;
+  --ag-background-color:        var(--card-bg);
+  --ag-header-background-color: var(--bg-secondary);
+  --ag-header-foreground-color: var(--text-muted);
+  --ag-foreground-color:        var(--text-main);
+  --ag-border-color:            var(--border-color);
+  --ag-row-hover-color:         var(--accent-light);
+  --ag-selected-row-background-color: rgba(79, 70, 229, 0.08);
+  --ag-font-family:             'Inter', sans-serif;
+  --ag-font-size:               13px;
+  --ag-cell-horizontal-padding: 16px;
   border-radius: 8px;
   overflow: hidden;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  box-shadow: var(--shadow-sm);
 }
 
 .ag-theme-alpine .ag-root-wrapper {
-  border: none;
+  border: 1px solid var(--border-color);
 }
+
+/* Tab pane */
+.tab-pane { width: 100%; }

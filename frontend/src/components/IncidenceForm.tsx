@@ -32,11 +32,12 @@ const getTodayDateString = () => {
 const IncidenceForm: React.FC = () => {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [catalogs, setCatalogs] = useState<IncidenceCatalog[]>([]);
-  
+
   const [fecha, setFecha] = useState(getTodayDateString());
   const [empleado, setEmpleado] = useState('');
   const [tipoIncidencia, setTipoIncidencia] = useState('');
   const [cantidad, setCantidad] = useState('');
+  const [aplicarATodos, setAplicarATodos] = useState(false);
 
   const [status, setStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -64,24 +65,49 @@ const IncidenceForm: React.FC = () => {
     }
   };
 
+  // Determine if the selected catalog is 'Asueto'
+  const selectedCatalog = catalogs.find(c => c.id === parseInt(tipoIncidencia));
+  const isAsueto = selectedCatalog?.abreviatura === 'ASU';
+
+  // Reset the checkbox when the type changes away from Asueto
+  useEffect(() => {
+    if (!isAsueto) {
+      setAplicarATodos(false);
+    }
+  }, [isAsueto]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setStatus(null);
     setIsLoading(true);
 
     try {
+      // ── BULK ASUETO path ──
+      if (isAsueto && aplicarATodos) {
+        await api.post('/api/payroll/incidence-records/bulk_asueto/', {
+          fecha,
+        });
+        setStatus({ type: 'success', message: 'Asueto masivo aplicado correctamente a todos los empleados activos.' });
+        setFecha(getTodayDateString());
+        setTipoIncidencia('');
+        setAplicarATodos(false);
+        return;
+      }
+
+      // ── SINGLE EMPLOYEE path ──
       const qty = parseFloat(cantidad);
       const promises = [];
 
-      const selectedEmployee = employees.find(emp => emp.no_nomina === empleado || emp.nombre === empleado);
+      const selectedEmployee = employees.find(
+        emp => emp.no_nomina === empleado || emp.nombre === empleado
+      );
       if (!selectedEmployee) {
-        setStatus({ type: 'error', message: 'Employee not found. Please select a valid employee.' });
+        setStatus({ type: 'error', message: 'Empleado no encontrado. Seleccione uno válido.' });
         setIsLoading(false);
         return;
       }
       const empleadoId = selectedEmployee.no_nomina;
 
-      const selectedCatalog = catalogs.find(c => c.id === parseInt(tipoIncidencia));
       const isNumeric = ['HX', 'HE', 'DA'].includes(selectedCatalog?.abreviatura || '');
 
       if (qty > 1 && !isNumeric) {
@@ -89,14 +115,16 @@ const IncidenceForm: React.FC = () => {
         const [y, m, d] = fecha.split('-').map(Number);
         const currentDate = new Date(y, m - 1, d);
         let iterations = 0;
-        
+
         while (remainingQty > 0) {
           iterations++;
           if (iterations >= 30) break;
 
           const dayOfWeek = currentDate.getDay();
           const isSunday = dayOfWeek === 0;
-          const isSaturdayRest = dayOfWeek === 6 && (!selectedEmployee?.horario_s || selectedEmployee.horario_s === "-");
+          const isSaturdayRest =
+            dayOfWeek === 6 &&
+            (!selectedEmployee?.horario_s || selectedEmployee.horario_s === '-');
 
           if (isSunday || isSaturdayRest) {
             currentDate.setDate(currentDate.getDate() + 1);
@@ -104,12 +132,11 @@ const IncidenceForm: React.FC = () => {
           }
 
           const currentQty = remainingQty >= 1 ? 1 : remainingQty;
-          
           const year = currentDate.getFullYear();
           const month = String(currentDate.getMonth() + 1).padStart(2, '0');
           const day = String(currentDate.getDate()).padStart(2, '0');
           const dateString = `${year}-${month}-${day}`;
-          
+
           promises.push(
             api.post('/api/payroll/incidence-records/', {
               fecha: dateString,
@@ -119,7 +146,7 @@ const IncidenceForm: React.FC = () => {
               cantidad: currentQty,
             })
           );
-          
+
           currentDate.setDate(currentDate.getDate() + 1);
           remainingQty -= 1;
         }
@@ -136,15 +163,14 @@ const IncidenceForm: React.FC = () => {
       }
 
       await Promise.all(promises);
-      
-      setStatus({ type: 'success', message: 'Incidence record successfully created!' });
-      // Reset form
+
+      setStatus({ type: 'success', message: 'Incidencia registrada correctamente.' });
       setFecha(getTodayDateString());
       setEmpleado('');
       setTipoIncidencia('');
       setCantidad('');
     } catch (err: any) {
-      let errorMessage = 'Failed to create incidence record. Check your data.';
+      let errorMessage = 'Error al registrar incidencia. Verifique los datos.';
       if (err.response?.data) {
         if (Array.isArray(err.response.data.non_field_errors)) {
           errorMessage = err.response.data.non_field_errors[0];
@@ -157,11 +183,7 @@ const IncidenceForm: React.FC = () => {
           }
         }
       }
-      
-      setStatus({ 
-        type: 'error', 
-        message: errorMessage
-      });
+      setStatus({ type: 'error', message: errorMessage });
     } finally {
       setIsLoading(false);
     }
@@ -170,57 +192,38 @@ const IncidenceForm: React.FC = () => {
   return (
     <div className="form-card">
       <div className="form-header">
-        <h3>Record Incidence</h3>
-        <p>Enter details for the new incidence record.</p>
+        <h3>Registrar Incidencia</h3>
+        <p>Ingrese los datos de la nueva incidencia.</p>
       </div>
 
       {status && (
-        <div className={`status-message ${status.type}`}>
-          {status.message}
-        </div>
+        <div className={`status-message ${status.type}`}>{status.message}</div>
       )}
 
       <form onSubmit={handleSubmit} className="data-form">
+        {/* Date */}
         <div className="form-group">
-          <label htmlFor="fecha">Date</label>
+          <label htmlFor="fecha">Fecha</label>
           <input
             type="date"
             id="fecha"
             value={fecha}
-            onChange={(e) => setFecha(e.target.value)}
+            onChange={e => setFecha(e.target.value)}
             required
           />
         </div>
 
+        {/* Incidence Type — placed before employee so "Aplicar a todos" appears logically */}
         <div className="form-group">
-          <label htmlFor="empleado">Employee</label>
-          <input
-            list="employee-options"
-            id="empleado"
-            value={empleado}
-            onChange={(e) => setEmpleado(e.target.value)}
-            placeholder="Search by ID or Name..."
-            required
-          />
-          <datalist id="employee-options">
-            {employees.map((emp) => (
-              <option key={emp.no_nomina} value={emp.no_nomina}>
-                {emp.nombre}
-              </option>
-            ))}
-          </datalist>
-        </div>
-
-        <div className="form-group">
-          <label htmlFor="tipoIncidencia">Incidence Type</label>
+          <label htmlFor="tipoIncidencia">Tipo de Incidencia</label>
           <select
             id="tipoIncidencia"
             value={tipoIncidencia}
-            onChange={(e) => setTipoIncidencia(e.target.value)}
+            onChange={e => setTipoIncidencia(e.target.value)}
             required
           >
-            <option value="" disabled>Select incidence type</option>
-            {catalogs.map((cat) => (
+            <option value="" disabled>Seleccionar tipo…</option>
+            {catalogs.map(cat => (
               <option key={cat.id} value={cat.id}>
                 {cat.tipo}
               </option>
@@ -228,21 +231,76 @@ const IncidenceForm: React.FC = () => {
           </select>
         </div>
 
-        <div className="form-group">
-          <label htmlFor="cantidad">Quantity</label>
-          <input
-            type="number"
-            id="cantidad"
-            value={cantidad}
-            onChange={(e) => setCantidad(e.target.value)}
-            placeholder="0.00"
-            step="0.01"
-            required
-          />
-        </div>
+        {/* "Aplicar a todos" checkbox — only visible when Asueto is selected */}
+        {isAsueto && (
+          <div className="form-group" id="asueto-bulk-row">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
+              <input
+                type="checkbox"
+                id="aplicar-a-todos"
+                checked={aplicarATodos}
+                onChange={e => setAplicarATodos(e.target.checked)}
+                style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: 'var(--color-amber)' }}
+              />
+              <label
+                htmlFor="aplicar-a-todos"
+                style={{ fontSize: '0.875rem', color: 'var(--color-amber)', cursor: 'pointer', fontWeight: 600 }}
+              >
+                Aplicar a todos los empleados activos (Asueto masivo)
+              </label>
+            </div>
+            {aplicarATodos && (
+              <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '0.5rem 0 0 26px' }}>
+                Se aplicará la fecha seleccionada a todos los empleados activos que no tengan ya una incidencia en ese día.
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* Employee — hidden when bulk asueto is active */}
+        {!aplicarATodos && (
+          <div className="form-group">
+            <label htmlFor="empleado">Empleado</label>
+            <input
+              list="employee-options"
+              id="empleado"
+              value={empleado}
+              onChange={e => setEmpleado(e.target.value)}
+              placeholder="Buscar por No. o Nombre…"
+              required={!aplicarATodos}
+            />
+            <datalist id="employee-options">
+              {employees.map(emp => (
+                <option key={emp.no_nomina} value={emp.no_nomina}>
+                  {emp.nombre}
+                </option>
+              ))}
+            </datalist>
+          </div>
+        )}
+
+        {/* Quantity — hidden when bulk asueto is active */}
+        {!aplicarATodos && (
+          <div className="form-group">
+            <label htmlFor="cantidad">Cantidad</label>
+            <input
+              type="number"
+              id="cantidad"
+              value={cantidad}
+              onChange={e => setCantidad(e.target.value)}
+              placeholder="0.00"
+              step="0.01"
+              required={!aplicarATodos}
+            />
+          </div>
+        )}
 
         <button type="submit" className="submit-button" disabled={isLoading}>
-          {isLoading ? 'Saving...' : 'Save Incidence'}
+          {isLoading
+            ? 'Guardando…'
+            : aplicarATodos
+            ? '📅 Aplicar Asueto Masivo'
+            : 'Guardar Incidencia'}
         </button>
       </form>
     </div>

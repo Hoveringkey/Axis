@@ -107,7 +107,7 @@ const BulkDataMapper: React.FC = () => {
 
       {statusMsg && (
         <div className={`dashboard-error ${statusMsg.type === 'success' ? 'success' : ''}`}
-          style={statusMsg.type === 'success' ? { backgroundColor: 'var(--success-color, #4CAF50)', color: 'white', padding: '1rem', borderRadius: '4px', marginBottom: '1rem' } : {}}>
+          style={statusMsg.type === 'success' ? { backgroundColor: 'var(--color-emerald)', color: 'var(--color-white)', padding: '1rem', borderRadius: '4px', marginBottom: '1rem' } : {}}>
           {statusMsg.text}
         </div>
       )}

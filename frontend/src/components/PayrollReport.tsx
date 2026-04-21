@@ -46,7 +46,7 @@ const PayrollReport: React.FC = () => {
 
   const getDashIfEmpty = (value: string | number | undefined | null) => {
     if (value === 0 || value === '0' || value === '0.0' || value === '0.00' || !value) {
-      return <span style={{ color: '#6b7280' }}>-</span>;
+      return <span style={{ color: 'var(--text-muted)' }}>-</span>;
     }
     return value;
   };
@@ -121,15 +121,16 @@ const PayrollReport: React.FC = () => {
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
-        background: 'linear-gradient(135deg, rgba(30,41,59,0.8), rgba(15,23,42,0.9))',
+        background: 'var(--sidebar-bg)',
         padding: '1.5rem',
         borderRadius: '12px',
         marginBottom: '2rem',
-        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
+        border: '1px solid var(--border-color)',
+        boxShadow: 'var(--shadow-md)'
       }}>
         <div>
-          <h2 style={{ margin: 0, fontSize: '1.5rem', color: '#f8fafc' }}>Variations Report</h2>
-          <p style={{ margin: '0.25rem 0 0', color: '#94a3b8', fontSize: '0.875rem' }}>Executive Payroll Summary</p>
+          <h2 style={{ margin: 0, fontSize: '1.5rem', color: 'var(--text-inverse)' }}>Variations Report</h2>
+          <p style={{ margin: '0.25rem 0 0', color: 'var(--text-muted)', fontSize: '0.875rem' }}>Executive Payroll Summary</p>
         </div>
         
         <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
@@ -139,7 +140,7 @@ const PayrollReport: React.FC = () => {
               border: '1px solid rgba(255,255,255,0.2)',
               borderRadius: '6px',
               padding: '0.5rem 1rem',
-              color: '#e2e8f0',
+              color: 'var(--text-inverse)',
               fontWeight: 500
             }}>
               {getPeriodName()}
@@ -157,9 +158,9 @@ const PayrollReport: React.FC = () => {
               width: '100px', 
               padding: '0.5rem',
               borderRadius: '6px',
-              border: '1px solid #334155',
-              background: '#1e293b',
-              color: 'white'
+              border: '1px solid rgba(255,255,255,0.2)',
+              background: 'rgba(255,255,255,0.1)',
+              color: 'var(--text-inverse)'
             }}
           />
           <button
@@ -177,14 +178,14 @@ const PayrollReport: React.FC = () => {
             style={{ 
               margin: 0, 
               padding: '0.5rem 1.25rem',
-              backgroundColor: isClosed ? '#10b981' : '#0ea5e9', // Deep green for success, Deep blue for action
-              color: 'white',
+              backgroundColor: isClosed ? 'var(--success-text)' : 'var(--accent-primary)',
+              color: 'var(--color-white)',
               border: 'none',
               borderRadius: '6px',
               cursor: (isClosing || calcResults.length === 0 || isClosed || isCalculating) ? 'not-allowed' : 'pointer',
               opacity: (calcResults.length === 0 && !isClosed) ? 0.5 : 1,
-              fontWeight: 500,
-              boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+              fontWeight: 600,
+              boxShadow: '0 2px 8px var(--accent-shadow)',
               transition: 'all 0.2s ease'
             }}
             title={calcResults.length === 0 ? "Run a report first to enable closing" : ""}
@@ -197,7 +198,7 @@ const PayrollReport: React.FC = () => {
       {calcError && <div className="dashboard-error mb-4">{calcError}</div>}
 
       {calcResults.length > 0 && (
-        <div className="ag-theme-alpine-dark" style={{ height: '600px', width: '100%', borderRadius: '8px', overflow: 'hidden' }}>
+        <div className="ag-theme-alpine" style={{ height: '600px', width: '100%', borderRadius: '8px', overflow: 'hidden' }}>
           <AgGridReact
             rowData={calcResults}
             columnDefs={calcColumnDefs}
@@ -211,8 +212,8 @@ const PayrollReport: React.FC = () => {
       )}
       
       {calcResults.length === 0 && !isCalculating && calcWeekNum && !calcError && (
-        <div style={{ textAlign: 'center', padding: '3rem', color: '#64748b', background: '#1e293b', borderRadius: '8px' }}>
-          <p>No variations found for the selected period.</p>
+        <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)', background: 'var(--card-bg)', border: '1px solid var(--border-color)', borderRadius: '8px' }}>
+          <p>No se encontraron variaciones para el período seleccionado.</p>
         </div>
       )}
     </div>

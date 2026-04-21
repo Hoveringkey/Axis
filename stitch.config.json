@@ -1,0 +1,13 @@
+{
+    "framework": "react",
+    "language": "typescript",
+    "styling": "tailwind",
+    "root_dir": "frontend/src",
+    "components_dir": "components",
+    "pages_dir": "pages",
+    "design_system": "avanplastic-ds",
+    "options": {
+        "use_absolute_imports": true,
+        "component_pattern": "functional"
+    }
+}

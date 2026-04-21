@@ -6,6 +6,67 @@ from django.db.models import Sum, Q
 from django.db import transaction
 from .models import Employee, IncidenceRecord, Loan, ExtraHourBank, IncidenceCatalog
 
+def calculate_vacation_balance(employee):
+    if not employee.fecha_ingreso:
+        return {
+            'total_entitled_days': 0,
+            'days_taken_in_current_window': 0,
+            'days_remaining': 0
+        }
+
+    today = datetime.date.today()
+    
+    # Calculate exact years of service
+    years_of_service = today.year - employee.fecha_ingreso.year
+    if (today.month, today.day) < (employee.fecha_ingreso.month, employee.fecha_ingreso.day):
+        years_of_service -= 1
+        
+    if years_of_service < 0:
+        years_of_service = 0
+
+    # Apply LFT 2023 rules
+    entitled = 0
+    if years_of_service >= 1:
+        if years_of_service == 1: entitled = 12
+        elif years_of_service == 2: entitled = 14
+        elif years_of_service == 3: entitled = 16
+        elif years_of_service == 4: entitled = 18
+        elif years_of_service == 5: entitled = 20
+        elif 6 <= years_of_service <= 10: entitled = 22
+        elif 11 <= years_of_service <= 15: entitled = 24
+        elif 16 <= years_of_service <= 20: entitled = 26
+        elif 21 <= years_of_service <= 25: entitled = 28
+        else: entitled = 28 # Cap or continue pattern if needed
+
+    # Calculate Anniversary Window
+    current_anniversary_year = today.year if (today.month, today.day) >= (employee.fecha_ingreso.month, employee.fecha_ingreso.day) else today.year - 1
+    
+    try:
+        window_start = datetime.date(current_anniversary_year, employee.fecha_ingreso.month, employee.fecha_ingreso.day)
+    except ValueError:
+        window_start = datetime.date(current_anniversary_year, 2, 28)
+
+    try:
+        window_end = datetime.date(current_anniversary_year + 1, employee.fecha_ingreso.month, employee.fecha_ingreso.day)
+    except ValueError:
+        window_end = datetime.date(current_anniversary_year + 1, 2, 28)
+
+    # Query IncidenceRecord
+    vacation_incidences = IncidenceRecord.objects.filter(
+        empleado=employee,
+        tipo_incidencia__abreviatura='V',
+        fecha__gte=window_start,
+        fecha__lt=window_end
+    )
+    
+    days_taken = sum(inc.cantidad or Decimal('0.00') for inc in vacation_incidences)
+    
+    return {
+        'total_entitled_days': entitled,
+        'days_taken_in_current_window': float(days_taken),
+        'days_remaining': max(0, entitled - float(days_taken))
+    }
+
 def is_monthly_bonus_week(target_year, target_week_num):
     # Retrieve the exact Friday of the target week (ISO day 5)
     target_friday = datetime.date.fromisocalendar(target_year, target_week_num, 5)

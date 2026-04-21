@@ -10,6 +10,8 @@ class Employee(models.Model):
     no_nomina = models.CharField(max_length=50, primary_key=True)
     nombre = models.CharField(max_length=255)
     puesto = models.CharField(max_length=255)
+    fecha_ingreso = models.DateField(null=True)
+    is_active = models.BooleanField(default=True)
     horario_lv = models.ForeignKey(Schedule, on_delete=models.SET_NULL, null=True, related_name='employees_lv')
     horario_s = models.ForeignKey(Schedule, on_delete=models.SET_NULL, null=True, blank=True, related_name='employees_s')
 

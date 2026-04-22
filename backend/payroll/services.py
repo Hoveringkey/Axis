@@ -271,22 +271,30 @@ def calculate_payroll_for_week(week_num, dry_run=True):
             if psg_count == Decimal(str(workable_days)):
                 loan_deduction = Decimal('0.00')
 
-        # 6. Physical Incidences (Ausentismos)
-        ausentismos_dict = {}
+        # 6. Physical Incidences (Ausentismos) — date-injected format
+        # Collect dates per abbreviation (excluding HX / DA which are monetary/hour tokens)
+        # Result format: "F:2026-04-20|2026-04-22, V:2026-04-23|2026-04-24|2026-04-25"
+        ausentismos_dates: dict[str, list[str]] = {}
         for inc in week_incidences:
             abrev = inc.tipo_incidencia.abreviatura
-            if abrev not in ['HX', 'DA']: # Exclude extra hours and abastecedor tokens
-                ausentismos_dict[abrev] = ausentismos_dict.get(abrev, Decimal('0.00')) + (inc.cantidad or Decimal('0.00'))
-        
+            if abrev not in ['HX', 'DA']:
+                date_str = inc.fecha.strftime('%Y-%m-%d')
+                if abrev not in ausentismos_dates:
+                    ausentismos_dates[abrev] = []
+                # A single IncidenceRecord can span multiple days via cantidad;
+                # we record the record's own fecha once per record, regardless of cantidad.
+                if date_str not in ausentismos_dates[abrev]:
+                    ausentismos_dates[abrev].append(date_str)
+
         ausentismos_parts = []
-        for k, v in ausentismos_dict.items():
-            val_str = str(int(v)) if v == v.to_integral_value() else str(v)
-            ausentismos_parts.append(f"{k}: {val_str}")
+        for abrev, dates in ausentismos_dates.items():
+            dates.sort()  # chronological order
+            ausentismos_parts.append(f"{abrev}:{('|').join(dates)}")
         ausentismos_str = ", ".join(ausentismos_parts)
 
         # 7. Filter: Only append if there are ANY variations
         has_variations = (
-            len(ausentismos_dict) > 0 or
+            len(ausentismos_dates) > 0 or
             paid_extra_hours > 0 or
             final_weekly_bonus > 0 or
             monthly_bonus > 0 or

@@ -1,28 +1,121 @@
-import React, { useState } from 'react';
+/**
+ * PayrollReport.tsx
+ *
+ * Live payroll calculation preview.  Implements the same 4-column token-based
+ * layout used by HistoryView so that the "calculate" preview and the immutable
+ * "history" audit look identical.
+ *
+ * Management-by-Exception: rows where every field is zero/empty are filtered
+ * out before the grid is rendered.  (The backend already applies the same
+ * filter, so this is a defensive client-side guard.)
+ */
+
+import React, { useState, useMemo } from 'react';
 import { AgGridReact } from 'ag-grid-react';
-import type { ColDef, ICellRendererParams } from 'ag-grid-community';
+import type { ColDef } from 'ag-grid-community';
 import api from '../api/axios';
+import './modules.css';
+import 'ag-grid-community/styles/ag-grid.css';
+import 'ag-grid-community/styles/ag-theme-alpine.css';
+
+import {
+  hasVariations,
+  IncidencesCellRenderer,
+  TotalPillCellRenderer,
+  NominaPillCellRenderer,
+  formatCurrency,
+} from './Nomina/GridRenderers';
+import type { DesgloseRow } from './Nomina/GridRenderers';
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+/**
+ * Flat row returned by /api/payroll/calculate/.
+ * Identical to DesgloseRow but we alias it here for clarity.
+ */
+type CalcRow = DesgloseRow;
+
+// ── Total calculation ─────────────────────────────────────────────────────────
+
+/** Mirrors the backend's total_pagar formula: sum(bonos) + paid_extra_hours – loan_deduction */
+const computeTotal = (row: CalcRow): number => {
+  const bonosSum = Object.values(row.bonos ?? {}).reduce((acc, v) => acc + Number(v), 0);
+  return bonosSum + Number(row.paid_extra_hours) - Number(row.loan_deduction);
+};
+
+// ── Column Definitions (4-column, token-based) ────────────────────────────────
+
+const buildColumnDefs = (): ColDef<CalcRow>[] => [
+  // 1. No. Nómina — pill renderer with safe fallback
+  {
+    headerName: 'No. Nómina',
+    sortable: true, filter: true,
+    width: 130,
+    pinned: 'left',
+    valueGetter: (p) => p.data?.no_nomina || (p.data as never as { empleado_no_nomina?: string })?.empleado_no_nomina || '',
+    cellRenderer: NominaPillCellRenderer,
+  },
+
+  // 2. Nombre
+  {
+    field: 'nombre',
+    headerName: 'Nombre',
+    sortable: true, filter: true,
+    flex: 1.4, minWidth: 160,
+    pinned: 'left',
+  },
+
+  // 3. Resumen Operativo – token pills
+  {
+    headerName: 'Resumen Operativo',
+    flex: 3,
+    minWidth: 300,
+    sortable: false,
+    cellRenderer: IncidencesCellRenderer,
+    autoHeight: true,
+  },
+
+  // 4. Total a Pagar — blank header; count-gate runs inside TotalPillCellRenderer
+  {
+    headerName: '',
+    sortable: true,
+    width: 160,
+    type: 'numericColumn',
+    valueGetter: (p) => (p.data ? computeTotal(p.data) : 0),
+    cellRenderer: ({ value, data }: { value: number; data: CalcRow }) =>
+      data ? <TotalPillCellRenderer value={value} data={data} {...({} as never)} /> : null,
+  },
+];
+
+const columnDefs = buildColumnDefs();
+
+// ── Component ─────────────────────────────────────────────────────────────────
 
 const PayrollReport: React.FC = () => {
-  const [calcWeekNum, setCalcWeekNum] = useState('');
-  const [calcResults, setCalcResults] = useState<any[]>([]);
-  const [calcError, setCalcError] = useState<string | null>(null);
+  const [calcWeekNum, setCalcWeekNum]   = useState('');
+  const [calcResults, setCalcResults]   = useState<CalcRow[]>([]);
+  const [calcError, setCalcError]       = useState<string | null>(null);
   const [isCalculating, setIsCalculating] = useState(false);
-  const [isClosing, setIsClosing] = useState(false);
-  const [isClosed, setIsClosed] = useState(false);
+  const [isClosing, setIsClosing]       = useState(false);
+  const [isClosed, setIsClosed]         = useState(false);
+
+  // ── Actions ────────────────────────────────────────────────────────────────
 
   const handleCalculate = async () => {
     if (!calcWeekNum) return;
     setIsCalculating(true);
     setCalcError(null);
-    setIsClosed(false); // Reset closure state on new query
+    setIsClosed(false);
     try {
       const response = await api.post('/api/payroll/calculate/', {
-        semana_num: parseInt(calcWeekNum, 10)
+        semana_num: parseInt(calcWeekNum, 10),
       });
-      setCalcResults(response.data.results || response.data);
-    } catch (err: any) {
-      setCalcError(err.response?.data?.detail || 'Calculation failed.');
+      const raw: CalcRow[] = response.data.results ?? response.data ?? [];
+      // ── MBE filter: defensive client-side guard (backend already filters) ──
+      setCalcResults(raw.filter(hasVariations));
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { detail?: string } } };
+      setCalcError(e.response?.data?.detail ?? 'Error al calcular la nómina.');
     } finally {
       setIsCalculating(false);
     }
@@ -34,186 +127,177 @@ const PayrollReport: React.FC = () => {
     setCalcError(null);
     try {
       await api.post('/api/payroll/close/', {
-        semana_num: parseInt(calcWeekNum, 10)
+        semana_num: parseInt(calcWeekNum, 10),
       });
       setIsClosed(true);
-    } catch (err: any) {
-      setCalcError(err.response?.data?.detail || 'Closing payroll failed.');
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { detail?: string } } };
+      setCalcError(e.response?.data?.detail ?? 'Error al cerrar la nómina.');
     } finally {
       setIsClosing(false);
     }
   };
 
-  const getDashIfEmpty = (value: string | number | undefined | null) => {
-    if (value === 0 || value === '0' || value === '0.0' || value === '0.00' || !value) {
-      return <span style={{ color: 'var(--text-muted)' }}>-</span>;
-    }
-    return value;
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') handleCalculate();
   };
 
-  const calcColumnDefs: ColDef[] = [
-    { 
-      field: 'empleado', 
-      headerName: 'Empleado', 
-      sortable: true, 
-      filter: true, 
-      flex: 1.5,
-      valueGetter: (params) => `${params.data.no_nomina} - ${params.data.nombre}`
-    },
-    { 
-      field: 'ausentismos', 
-      headerName: 'Ausentismos', 
-      sortable: true, 
-      flex: 1,
-      cellRenderer: (params: ICellRendererParams) => getDashIfEmpty(params.value)
-    },
-    { 
-      field: 'paid_extra_hours', 
-      headerName: 'Horas Extra', 
-      sortable: true, 
-      flex: 1,
-      cellRenderer: (params: ICellRendererParams) => getDashIfEmpty(params.value)
-    },
-    { 
-      field: 'bonos', 
-      headerName: 'Bonos', 
-      sortable: true, 
-      flex: 2,
-      cellRenderer: (params: ICellRendererParams) => {
-        const b = params.value;
-        if (!b) return getDashIfEmpty(null);
-        
-        const parts: string[] = [];
-        Object.entries(b).forEach(([key, value]) => {
-          const numValue = Number(value);
-          if (numValue > 0) {
-            parts.push(`${key}: $${numValue}`);
-          }
-        });
-        
-        if (parts.length === 0) return getDashIfEmpty(null);
-        return parts.join(' | ');
-      }
-    },
-    { 
-      field: 'prestamos', 
-      headerName: 'Préstamos', 
-      sortable: true, 
-      flex: 1,
-      cellRenderer: (params: ICellRendererParams) => {
-        const d = params.data.loan_deduction;
-        if (!d || d === 0) return getDashIfEmpty(null);
-        return `$${d} (${params.data.pagos_realizados}/${params.data.total_pagos})`;
-      }
-    }
-  ];
+  // ── Derived labels ─────────────────────────────────────────────────────────
 
-  // Helper to construct modern period name
-  const getPeriodName = () => {
-    if (!calcWeekNum) return "Select a period";
-    const year = new Date().getFullYear();
-    return `Semana ${calcWeekNum}, ${year}`;
-  };
+  const year        = new Date().getFullYear();
+  const periodLabel = calcWeekNum ? `Semana ${calcWeekNum}, ${year}` : 'Selecciona un período';
+
+  const grandTotal = useMemo(
+    () => calcResults.reduce((sum, row) => sum + computeTotal(row), 0),
+    [calcResults]
+  );
+
+  const recordLabel = useMemo(() => {
+    const n = calcResults.length;
+    if (n === 0) return 'Sin variaciones calculadas';
+    return `${n} empleado${n !== 1 ? 's' : ''} con variaciones · Total: ${formatCurrency(grandTotal)}`;
+  }, [calcResults.length, grandTotal]);
+
+  // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
     <div className="tab-pane fade-in">
-      <div className="report-header" style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
+
+      {/* ── Header bar ── */}
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: '0.75rem',
         background: 'var(--sidebar-bg)',
-        padding: '1.5rem',
-        borderRadius: '12px',
-        marginBottom: '2rem',
-        border: '1px solid var(--border-color)',
-        boxShadow: 'var(--shadow-md)'
+        border: '1px solid rgba(255,255,255,0.08)',
+        borderRadius: '12px', padding: '1rem 1.5rem',
+        marginBottom: '1.5rem', boxShadow: 'var(--shadow-md)',
+        flexWrap: 'wrap',
       }}>
-        <div>
-          <h2 style={{ margin: 0, fontSize: '1.5rem', color: 'var(--text-inverse)' }}>Variations Report</h2>
-          <p style={{ margin: '0.25rem 0 0', color: 'var(--text-muted)', fontSize: '0.875rem' }}>Executive Payroll Summary</p>
-        </div>
-        
-        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-          <div className="period-selector" style={{ position: 'relative' }}>
-            <div style={{
-              background: 'rgba(255,255,255,0.1)',
-              border: '1px solid rgba(255,255,255,0.2)',
-              borderRadius: '6px',
-              padding: '0.5rem 1rem',
-              color: 'var(--text-inverse)',
-              fontWeight: 500
-            }}>
-              {getPeriodName()}
-            </div>
+        {/* Period info */}
+        <div style={{ flex: 1 }}>
+          <div style={{ fontWeight: 600, fontSize: '1rem', color: 'var(--text-inverse)', marginBottom: '0.15rem' }}>
+            {periodLabel}
           </div>
-          
+          <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+            {recordLabel}
+          </div>
+        </div>
+
+        {/* Controls */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+          {/* Week input */}
+          <label htmlFor="payroll-semana-input"
+            style={{ fontSize: '0.85rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+            Semana No.
+          </label>
           <input
+            id="payroll-semana-input"
             type="number"
-            placeholder="Week No."
+            placeholder="1 – 53"
+            min={1} max={53}
             value={calcWeekNum}
-            onChange={(e) => setCalcWeekNum(e.target.value)}
-            min="1"
-            max="53"
-            style={{ 
-              width: '100px', 
-              padding: '0.5rem',
-              borderRadius: '6px',
-              border: '1px solid rgba(255,255,255,0.2)',
-              background: 'rgba(255,255,255,0.1)',
-              color: 'var(--text-inverse)'
+            onChange={e => setCalcWeekNum(e.target.value)}
+            onKeyDown={handleKeyDown}
+            style={{
+              width: '90px', padding: '0.45rem 0.75rem', borderRadius: '8px',
+              border: '1px solid rgba(255,255,255,0.15)',
+              background: 'rgba(255,255,255,0.07)',
+              color: 'var(--text-inverse)', fontSize: '0.9rem', outline: 'none',
             }}
           />
+
+          {/* Run Report */}
           <button
-            className="submit-button"
+            id="payroll-calculate-btn"
             onClick={handleCalculate}
             disabled={isCalculating || !calcWeekNum}
-            style={{ margin: 0, padding: '0.5rem 1.25rem' }}
-          >
-            {isCalculating ? 'Processing...' : 'Run Report'}
+            style={{
+              padding: '0.45rem 1.25rem', borderRadius: '8px', border: 'none',
+              background: isCalculating ? 'rgba(79,70,229,0.5)' : 'var(--accent-primary)',
+              color: 'var(--color-white)', fontWeight: 600, fontSize: '0.875rem',
+              cursor: isCalculating || !calcWeekNum ? 'not-allowed' : 'pointer',
+              transition: 'all 0.2s ease', boxShadow: '0 2px 8px var(--accent-shadow)',
+            }}>
+            {isCalculating ? 'Calculando…' : 'Calcular Nómina'}
           </button>
-          
+
+          {/* Close Payroll */}
           <button
+            id="payroll-close-btn"
             onClick={handleClosePayroll}
             disabled={isClosing || calcResults.length === 0 || isClosed || isCalculating}
-            style={{ 
-              margin: 0, 
-              padding: '0.5rem 1.25rem',
-              backgroundColor: isClosed ? 'var(--success-text)' : 'var(--accent-primary)',
-              color: 'var(--color-white)',
-              border: 'none',
-              borderRadius: '6px',
-              cursor: (isClosing || calcResults.length === 0 || isClosed || isCalculating) ? 'not-allowed' : 'pointer',
+            title={calcResults.length === 0 ? 'Ejecuta el reporte primero' : ''}
+            style={{
+              padding: '0.45rem 1.25rem', borderRadius: '8px', border: 'none',
+              background: isClosed ? 'rgba(16,185,129,0.2)' : 'var(--accent-primary)',
+              color: isClosed ? 'var(--color-emerald, #10b981)' : 'var(--color-white)',
+              fontWeight: 600, fontSize: '0.875rem',
+              cursor: (isClosing || calcResults.length === 0 || isClosed || isCalculating)
+                ? 'not-allowed'
+                : 'pointer',
               opacity: (calcResults.length === 0 && !isClosed) ? 0.5 : 1,
-              fontWeight: 600,
-              boxShadow: '0 2px 8px var(--accent-shadow)',
-              transition: 'all 0.2s ease'
-            }}
-            title={calcResults.length === 0 ? "Run a report first to enable closing" : ""}
-          >
-            {isClosing ? 'Closing...' : isClosed ? 'Closed Successfully' : 'Close Payroll'}
+              transition: 'all 0.2s ease', boxShadow: '0 2px 8px var(--accent-shadow)',
+              border: isClosed ? '1px solid rgba(16,185,129,0.4)' : 'none',
+            }}>
+            {isClosing ? 'Cerrando…' : isClosed ? '✓ Nómina Cerrada' : 'Cerrar Nómina'}
           </button>
         </div>
       </div>
 
-      {calcError && <div className="dashboard-error mb-4">{calcError}</div>}
-
-      {calcResults.length > 0 && (
-        <div className="ag-theme-alpine" style={{ height: '600px', width: '100%', borderRadius: '8px', overflow: 'hidden' }}>
-          <AgGridReact
-            rowData={calcResults}
-            columnDefs={calcColumnDefs}
-            pagination={true}
-            paginationPageSize={20}
-            animateRows={true}
-            rowHeight={48}
-            headerHeight={48}
-          />
+      {/* ── Error Banner ── */}
+      {calcError && (
+        <div style={{
+          background: 'var(--error-bg)', border: '1px solid var(--error-border)',
+          borderRadius: '8px', padding: '0.75rem 1rem',
+          color: 'var(--error-text)', fontSize: '0.875rem', marginBottom: '1rem',
+        }}>
+          ⚠️ {calcError}
         </div>
       )}
-      
+
+      {/* ── AG Grid ── */}
+      {calcResults.length > 0 && (
+        <div className="eh-grid-wrapper">
+          <div className="ag-theme-alpine" style={{ height: '600px', width: '100%' }}>
+            <AgGridReact<CalcRow>
+              rowData={calcResults}
+              columnDefs={columnDefs}
+              pagination={true}
+              paginationPageSize={25}
+              animateRows={true}
+              rowHeight={56}
+              headerHeight={48}
+              defaultColDef={{ resizable: true }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* ── Empty state (after calculation returned nothing) ── */}
       {calcResults.length === 0 && !isCalculating && calcWeekNum && !calcError && (
-        <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)', background: 'var(--card-bg)', border: '1px solid var(--border-color)', borderRadius: '8px' }}>
-          <p>No se encontraron variaciones para el período seleccionado.</p>
+        <div style={{
+          textAlign: 'center', padding: '4rem 2rem',
+          background: 'var(--card-bg)', border: '1px solid var(--border-color)',
+          borderRadius: '12px', color: 'var(--text-muted)',
+        }}>
+          <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🎉</div>
+          <p style={{ margin: 0, fontSize: '0.95rem' }}>
+            Todos los empleados tuvieron una semana limpia en la Semana {calcWeekNum}.<br />
+            No hay variaciones que mostrar.
+          </p>
+        </div>
+      )}
+
+      {/* ── Initial prompt ── */}
+      {!calcWeekNum && !isCalculating && calcResults.length === 0 && !calcError && (
+        <div style={{
+          textAlign: 'center', padding: '4rem 2rem',
+          background: 'var(--card-bg)', border: '1px solid var(--border-color)',
+          borderRadius: '12px', color: 'var(--text-muted)',
+        }}>
+          <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🧮</div>
+          <p style={{ margin: 0, fontSize: '0.95rem' }}>
+            Ingresa el número de semana y presiona <strong>Calcular Nómina</strong> para ver las variaciones.
+          </p>
         </div>
       )}
     </div>

@@ -75,16 +75,71 @@
   margin-top: 1rem;
 }
 
-/* ---- AG GRID — shared light overrides ---- */
+/* ---- AG GRID — Borderless list aesthetic ---- */
 .ag-theme-alpine {
-  --ag-background-color:        var(--card-bg);
-  --ag-header-background-color: var(--bg-secondary);
-  --ag-header-foreground-color: var(--text-muted);
-  --ag-foreground-color:        var(--text-main);
-  --ag-border-color:            var(--border-color);
-  --ag-row-hover-color:         var(--accent-light);
-  --ag-selected-row-background-color: rgba(79, 70, 229, 0.08);
-  --ag-font-family:             'Inter', sans-serif;
-  --ag-font-size:               13px;
-  --ag-cell-horizontal-padding: 16px;
+  --ag-background-color:              var(--card-bg);
+  --ag-header-background-color:       var(--bg-primary);
+  --ag-header-foreground-color:       var(--text-muted);
+  --ag-foreground-color:              var(--text-main);
+  --ag-border-color:                  transparent;
+  --ag-row-hover-color:               var(--bg-secondary);
+  --ag-selected-row-background-color: rgba(79, 70, 229, 0.06);
+  --ag-odd-row-background-color:      var(--card-bg);
+  --ag-font-family:                   'Inter', system-ui, sans-serif;
+  --ag-font-size:                     13px;
+  --ag-cell-horizontal-padding:       16px;
+  --ag-row-border-width:              0px;
+  --ag-cell-widget-spacing:           8px;
 }
+
+/* Remove the outer chrome border and box-shadow */
+.ag-theme-alpine .ag-root-wrapper {
+  border:     none !important;
+  box-shadow: none !important;
+  font-family: inherit !important;
+}
+
+/* Clean header: single bottom divider only */
+.ag-theme-alpine .ag-header {
+  background-color: var(--bg-primary) !important;
+  border-bottom:    1px solid var(--border-color) !important;
+  border-top:       none !important;
+  border-left:      none !important;
+  border-right:     none !important;
+}
+
+.ag-theme-alpine .ag-header-cell {
+  border-right:  none !important;
+  border-bottom: none !important;
+}
+
+/* Erase horizontal row separators */
+.ag-theme-alpine .ag-row {
+  border-bottom: none !important;
+  transition: background-color 0.12s ease;
+}
+
+/* Erase all cell borders (vertical lines) */
+.ag-theme-alpine .ag-cell {
+  border: none !important;
+}
+
+/* Pinned column separator */
+.ag-theme-alpine .ag-pinned-left-cols-container {
+  border-right: 1px solid var(--border-color) !important;
+  box-shadow:   2px 0 8px rgba(0, 0, 0, 0.04) !important;
+}
+
+/* Pagination bar */
+.ag-theme-alpine .ag-paging-panel {
+  border-top:       1px solid var(--border-color);
+  background-color: var(--card-bg);
+  color:            var(--text-muted);
+  font-size:        0.78rem;
+}
+
+/* Column resizer handle */
+.ag-theme-alpine .ag-header-cell-resize::after {
+  background-color: var(--border-color) !important;
+}
+

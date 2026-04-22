@@ -1,51 +1,18 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { AgGridReact } from 'ag-grid-react';
-import type { ColDef, ValueGetterParams, ValueFormatterParams, ICellRendererParams } from 'ag-grid-community';
+import type { ColDef, ValueGetterParams } from 'ag-grid-community';
 import api from '../../api/axios';
 import '../modules.css';
 
-// ── Types ────────────────────────────────────────────────────────────────────
+import {
+  hasVariations,
+  IncidencesCellRenderer,
+  TotalPillCellRenderer,
+  NominaPillCellRenderer,
+} from './GridRenderers';
+import type { DesgloseRow, Bonos } from './GridRenderers';
 
-/**
- * Shape of the `desglose` JSON field.
- * This is the exact `row` dict appended to `results` in services.py:
- *
- *   {
- *     no_nomina:        string,
- *     nombre:           string,
- *     ausentismos:      string,   ← "ABBREV: count, ABBREV: count" flat string
- *     paid_extra_hours: float,    ← quantity of hours paid (NOT money)
- *     bonos: {
- *       Nocturno:    float,       ← weekly night-shift bonus ($)
- *       Mensual:     float,       ← monthly bonus ($)
- *       Abastecedor: float,       ← abastecedor incentive ($)
- *     },
- *     loan_deduction:   float,
- *     pagos_realizados: number,
- *     total_pagos:      number,
- *   }
- *
- * Incidences live inside the `ausentismos` string as abbreviation codes:
- *   F  = Falta          V   = Vacaciones        I   = Incapacidad
- *   PSG/PGS = Permiso c/ Goce    PsSG = Permiso s/ Goce    ASU = Asueto
- *   ALTA = Alta         BAJA = Baja
- */
-interface Bonos {
-  Nocturno: number;
-  Mensual: number;
-  Abastecedor: number;
-}
-
-interface Desglose {
-  no_nomina: string;
-  nombre: string;
-  ausentismos: string;       // e.g. "F: 1, V: 2, ALTA: 1"
-  paid_extra_hours: number;  // quantity in hours, NOT money
-  bonos: Bonos;
-  loan_deduction: number;
-  pagos_realizados: number;
-  total_pagos: number;
-}
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 interface PayrollSnapshot {
   id: number;
@@ -54,257 +21,79 @@ interface PayrollSnapshot {
   empleado_no_nomina: string;
   empleado_nombre: string;
   total_pagar: string;
-  desglose: Desglose;
+  desglose: DesgloseRow;
 }
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
-const formatCurrency = (value: number | string | null | undefined): string => {
-  const n = Number(value ?? 0);
-  return `$${n.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-};
-
-const formatDate = (iso: string): string =>
-  new Date(iso).toLocaleString('es-MX', {
-    year: 'numeric', month: 'short', day: '2-digit',
-    hour: '2-digit', minute: '2-digit', hour12: false,
-  });
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 /**
- * Parses the flat `ausentismos` string ("F: 1, ALTA: 1, V: 2") into a Map
- * of abbreviation → numeric count. Memoised per row by reference equality.
+ * Management-by-Exception filter for snapshots.
+ * Delegates to the shared `hasVariations` helper which inspects `desglose`.
  */
-const parseAusentismos = (() => {
-  const cache = new WeakMap<PayrollSnapshot, Map<string, number>>();
-  return (row: PayrollSnapshot): Map<string, number> => {
-    if (cache.has(row)) return cache.get(row)!;
-    const map = new Map<string, number>();
-    const raw = row.desglose?.ausentismos ?? '';
-    if (raw) {
-      raw.split(',').forEach(part => {
-        const [abbrev, count] = part.split(':').map(s => s.trim());
-        if (abbrev && count !== undefined) {
-          map.set(abbrev.toUpperCase(), parseFloat(count) || 0);
-        }
-      });
-    }
-    cache.set(row, map);
-    return map;
-  };
-})();
+const isNotClean = (snap: PayrollSnapshot): boolean =>
+  hasVariations(snap.desglose);
 
-/** Extract a numeric value from the ausentismos string by abbreviation code. */
-const getAbrev = (row: PayrollSnapshot, ...codes: string[]): number => {
-  const map = parseAusentismos(row);
-  for (const code of codes) {
-    const v = map.get(code.toUpperCase());
-    if (v != null && v > 0) return v;
-  }
-  return 0;
+// ── Column Definitions (4-column token layout) ────────────────────────────────
+
+/**
+ * The snapshot grid shares the same 4-column architecture used by PayrollReport.
+ * The "Resumen Operativo" column receives the normalised `desglose` object so
+ * that IncidencesCellRenderer can work against a plain DesgloseRow.
+ */
+/** Mirrors backend total_pagar: sum(bonos) + paid_extra_hours – loan_deduction */
+const computeSnapshotTotal = (snap: PayrollSnapshot): number => {
+  const d = snap.desglose;
+  const bonosSum = Object.values((d.bonos ?? {}) as Bonos).reduce((acc, v) => acc + Number(v), 0);
+  return bonosSum + Number(d.paid_extra_hours) - Number(d.loan_deduction);
 };
-
-// ── Status Pill ───────────────────────────────────────────────────────────────
-
-interface PillRendererProps extends ICellRendererParams<PayrollSnapshot> {
-  pillLabel: string;
-  variant: 'success' | 'error';
-}
-
-const StatusPill: React.FC<PillRendererProps> = ({ value, pillLabel, variant }) => {
-  if (!value) return null;
-  const ok = variant === 'success';
-  return (
-    <span style={{
-      display: 'inline-flex',
-      alignItems: 'center',
-      padding: '0.15rem 0.6rem',
-      borderRadius: '999px',
-      fontSize: '0.72rem',
-      fontWeight: 700,
-      letterSpacing: '0.04em',
-      textTransform: 'uppercase',
-      background: ok ? 'var(--success-bg)' : 'var(--error-bg)',
-      color:      ok ? 'var(--success-text)' : 'var(--error-text)',
-      border:     `1px solid ${ok ? 'var(--success-border)' : 'var(--error-border)'}`,
-      lineHeight: 1.4,
-    }}>
-      {pillLabel}
-    </span>
-  );
-};
-
-// ── Column Definitions ────────────────────────────────────────────────────────
 
 const buildColumnDefs = (): ColDef<PayrollSnapshot>[] => [
-
-  // ── Identity ──────────────────────────────────────────────────────────────
+  // 1. No. Nómina — pill renderer with safe fallback
   {
-    field: 'empleado_no_nomina',
     headerName: 'No. Nómina',
     sortable: true, filter: true,
-    width: 120,
+    width: 130,
     pinned: 'left',
+    valueGetter: (p: ValueGetterParams<PayrollSnapshot>) =>
+      p.data?.empleado_no_nomina || p.data?.desglose?.no_nomina || '',
+    cellRenderer: NominaPillCellRenderer,
   },
+
+  // 2. Nombre
   {
     field: 'empleado_nombre',
     headerName: 'Nombre',
     sortable: true, filter: true,
-    flex: 2, minWidth: 160,
+    flex: 1.4, minWidth: 160,
     pinned: 'left',
   },
+
+  // 3. Resumen Operativo – token pills
+  // valueGetter extracts the full desglose so IncidencesCellRenderer always
+  // gets a plain DesgloseRow with the correct `ausentismos` string — this is
+  // the fix for HistoryView date rendering: snap.desglose IS a DesgloseRow
+  // with the v2 ausentismos string written at close-time by services.py.
   {
-    field: 'fecha_cierre',
-    headerName: 'Fecha Cierre',
+    headerName: 'Resumen Operativo',
+    flex: 3,
+    minWidth: 300,
+    sortable: false,
+    valueGetter: (p: ValueGetterParams<PayrollSnapshot>) => p.data?.desglose ?? null,
+    cellRenderer: ({ value }: { value: DesgloseRow | null }) =>
+      value ? <IncidencesCellRenderer data={value} {...({} as never)} /> : null,
+    autoHeight: true,
+  },
+
+  // 4. Total a Pagar — blank header; count-gate runs inside renderer
+  {
+    headerName: '',
     sortable: true,
     width: 155,
-    cellRenderer: (p: ICellRendererParams<PayrollSnapshot>) =>
-      p.value ? formatDate(p.value as string) : '—',
-  },
-  {
-    field: 'total_pagar',
-    headerName: 'Total a Pagar',
-    sortable: true,
-    width: 135,
-    type: 'numericColumn',
-    cellRenderer: (p: ICellRendererParams<PayrollSnapshot>) => (
-      <span style={{ color: 'var(--color-emerald)', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
-        {formatCurrency(p.value as string)}
-      </span>
-    ),
-  },
-
-  // ── Status Events (from ausentismos string) ───────────────────────────────
-  {
-    headerName: 'Alta',
-    sortable: true,
-    width: 90,
-    valueGetter: (p: ValueGetterParams<PayrollSnapshot>) =>
-      p.data ? getAbrev(p.data, 'ALTA') : 0,
-    cellRenderer: (p: ICellRendererParams<PayrollSnapshot>) => (
-      <StatusPill {...p} pillLabel="ALTA" variant="success" />
-    ),
-  },
-  {
-    headerName: 'Baja',
-    sortable: true,
-    width: 90,
-    valueGetter: (p: ValueGetterParams<PayrollSnapshot>) =>
-      p.data ? getAbrev(p.data, 'BAJA') : 0,
-    cellRenderer: (p: ICellRendererParams<PayrollSnapshot>) => (
-      <StatusPill {...p} pillLabel="BAJA" variant="error" />
-    ),
-  },
-
-  // ── Bonuses (from desglose.bonos object) ─────────────────────────────────
-  {
-    headerName: 'Bono Nocturno',
-    sortable: true,
-    width: 145,
     type: 'numericColumn',
     valueGetter: (p: ValueGetterParams<PayrollSnapshot>) =>
-      p.data?.desglose?.bonos?.Nocturno ?? 0,
-    valueFormatter: (p: ValueFormatterParams<PayrollSnapshot>) => {
-      const n = Number(p.value ?? 0);
-      return n > 0 ? formatCurrency(n) : '—';
-    },
-    cellStyle: (p) => ({
-      color: Number(p.value) > 0 ? 'var(--color-violet)' : 'var(--text-muted)',
-      fontVariantNumeric: 'tabular-nums',
-    }),
-  },
-  {
-    headerName: 'Bono Mensual',
-    sortable: true,
-    width: 135,
-    type: 'numericColumn',
-    valueGetter: (p: ValueGetterParams<PayrollSnapshot>) =>
-      p.data?.desglose?.bonos?.Mensual ?? 0,
-    valueFormatter: (p: ValueFormatterParams<PayrollSnapshot>) => {
-      const n = Number(p.value ?? 0);
-      return n > 0 ? formatCurrency(n) : '—';
-    },
-    cellStyle: (p) => ({
-      color: Number(p.value) > 0 ? 'var(--color-amber)' : 'var(--text-muted)',
-      fontVariantNumeric: 'tabular-nums',
-    }),
-  },
-  {
-    headerName: 'Día Abastecedor',
-    sortable: true,
-    width: 145,
-    type: 'numericColumn',
-    valueGetter: (p: ValueGetterParams<PayrollSnapshot>) =>
-      p.data?.desglose?.bonos?.Abastecedor ?? 0,
-    valueFormatter: (p: ValueFormatterParams<PayrollSnapshot>) => {
-      const n = Number(p.value ?? 0);
-      return n > 0 ? formatCurrency(n) : '—';
-    },
-    cellStyle: (p) => ({
-      color: Number(p.value) > 0 ? 'var(--color-amber)' : 'var(--text-muted)',
-      fontVariantNumeric: 'tabular-nums',
-    }),
-  },
-
-  // ── Extra Hours — quantity, NOT money (desglose.paid_extra_hours) ─────────
-  {
-    headerName: 'Horas Extra',
-    sortable: true,
-    width: 120,
-    type: 'numericColumn',
-    valueGetter: (p: ValueGetterParams<PayrollSnapshot>) =>
-      p.data?.desglose?.paid_extra_hours ?? 0,
-    valueFormatter: (p: ValueFormatterParams<PayrollSnapshot>) =>
-      `${Number(p.value ?? 0)} hrs`,
-    cellStyle: (p) => ({
-      color: Number(p.value) > 0 ? 'var(--accent-primary)' : 'var(--text-muted)',
-      fontVariantNumeric: 'tabular-nums',
-    }),
-  },
-
-  // ── Day-Unit Incidences (parsed from desglose.ausentismos string) ─────────
-  // Each entry: { codes: string[] = DB abbreviation(s), header: string }
-  ...([
-    { codes: ['F'],              header: 'Faltas'           },
-    { codes: ['V'],              header: 'Vacaciones'       },
-    { codes: ['I'],              header: 'Incapacidad'      },
-    { codes: ['PSG', 'PGS'],    header: 'Permiso c/ Goce'  },
-    { codes: ['PSGS', 'PsSG'],  header: 'Permiso s/ Goce'  },
-    { codes: ['ASU'],            header: 'Asueto'           },
-  ] as { codes: string[]; header: string }[]).map(({ codes, header }): ColDef<PayrollSnapshot> => ({
-    headerName: header,
-    sortable: true,
-    width: 130,
-    type: 'numericColumn',
-    valueGetter: (p: ValueGetterParams<PayrollSnapshot>) =>
-      p.data ? getAbrev(p.data, ...codes) : 0,
-    valueFormatter: (p: ValueFormatterParams<PayrollSnapshot>) =>
-      `${Number(p.value ?? 0)} días`,
-    cellStyle: (p) => ({
-      color: Number(p.value) > 0 ? 'var(--error-text)' : 'var(--text-muted)',
-      fontVariantNumeric: 'tabular-nums',
-    }),
-  })),
-
-  // ── Loans (from desglose directly) ───────────────────────────────────────
-  {
-    headerName: 'Préstamo',
-    sortable: true,
-    width: 135,
-    type: 'numericColumn',
-    valueGetter: (p: ValueGetterParams<PayrollSnapshot>) =>
-      p.data?.desglose?.loan_deduction ?? 0,
-    valueFormatter: (p: ValueFormatterParams<PayrollSnapshot>) => {
-      const n = Number(p.value ?? 0);
-      if (n <= 0) return '—';
-      const row = (p as ValueFormatterParams<PayrollSnapshot>).data;
-      const done = row?.desglose?.pagos_realizados ?? 0;
-      const total = row?.desglose?.total_pagos ?? 0;
-      return `${formatCurrency(n)} (${done}/${total})`;
-    },
-    cellStyle: (p) => ({
-      color: Number(p.value) > 0 ? 'var(--error-text)' : 'var(--text-muted)',
-      fontVariantNumeric: 'tabular-nums',
-    }),
+      p.data ? computeSnapshotTotal(p.data) : 0,
+    cellRenderer: ({ value, data }: { value: number; data: PayrollSnapshot }) =>
+      data ? <TotalPillCellRenderer value={value} data={data.desglose} {...({} as never)} /> : null,
   },
 ];
 
@@ -333,7 +122,9 @@ const HistoryView: React.FC = () => {
       const res = await api.get<PayrollSnapshot[]>(
         `/api/payroll/snapshots/?semana_num=${parsed}`
       );
-      setSnapshots(res.data);
+      // ── MBE filter: drop completely clean records ──────────────────────────
+      const filtered = res.data.filter(isNotClean);
+      setSnapshots(filtered);
     } catch (err: unknown) {
       const e = err as { response?: { data?: { detail?: string } } };
       setError(e.response?.data?.detail ?? 'Error al obtener los datos. Intenta de nuevo.');
@@ -348,6 +139,13 @@ const HistoryView: React.FC = () => {
 
   const year        = new Date().getFullYear();
   const periodLabel = semanaQueried ? `Semana ${semanaQueried}, ${year}` : 'Selecciona un período';
+
+  // Record count label is derived from post-filter snapshots
+  const recordLabel = useMemo(() => {
+    const n = snapshots.length;
+    if (n === 0) return 'Consulta un período para ver su historial';
+    return `${n} registro${n !== 1 ? 's' : ''} con variaciones`;
+  }, [snapshots.length]);
 
   return (
     <div className="module-page">
@@ -372,9 +170,7 @@ const HistoryView: React.FC = () => {
             {periodLabel}
           </div>
           <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-            {snapshots.length > 0
-              ? `${snapshots.length} registro${snapshots.length !== 1 ? 's' : ''} encontrado${snapshots.length !== 1 ? 's' : ''}`
-              : 'Consulta un período para ver su historial'}
+            {recordLabel}
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
@@ -432,7 +228,7 @@ const HistoryView: React.FC = () => {
               pagination={true}
               paginationPageSize={25}
               animateRows={true}
-              rowHeight={48}
+              rowHeight={56}
               headerHeight={48}
               defaultColDef={{ resizable: true }}
             />
@@ -440,7 +236,7 @@ const HistoryView: React.FC = () => {
         </div>
       )}
 
-      {/* ── Empty State ── */}
+      {/* ── Empty State (post-filter) ── */}
       {!loading && semanaQueried !== null && snapshots.length === 0 && !error && (
         <div style={{
           textAlign: 'center', padding: '4rem 2rem',
@@ -449,8 +245,8 @@ const HistoryView: React.FC = () => {
         }}>
           <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🗂️</div>
           <p style={{ margin: 0, fontSize: '0.95rem' }}>
-            No se encontraron registros para la Semana {semanaQueried}.<br />
-            Asegúrate de haber cerrado la nómina de ese período.
+            No se encontraron registros con variaciones para la Semana {semanaQueried}.<br />
+            Todos los empleados tuvieron una semana limpia, o la nómina aún no se ha cerrado.
           </p>
         </div>
       )}

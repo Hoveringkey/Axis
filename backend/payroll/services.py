@@ -4,7 +4,7 @@ from decimal import Decimal
 from collections import defaultdict
 from django.db.models import Sum, Q
 from django.db import transaction
-from .models import Employee, IncidenceRecord, Loan, ExtraHourBank, IncidenceCatalog
+from .models import Employee, IncidenceRecord, Loan, ExtraHourBank, IncidenceCatalog, PayrollSnapshot
 
 def calculate_vacation_balance(employee):
     if not employee.fecha_ingreso:
@@ -315,5 +315,25 @@ def calculate_payroll_for_week(week_num, dry_run=True):
                 ExtraHourBank.objects.bulk_update(banks_to_update, ['horas_deuda'])
             if banks_to_delete:
                 ExtraHourBank.objects.filter(id__in=[b.id for b in banks_to_delete]).delete()
+
+            # Build immutable audit snapshots for every employee with variations
+            snapshots = []
+            for row in results:
+                bonos = row.get('bonos', {})
+                total_bonos = Decimal(str(sum(v for v in bonos.values() if v > 0)))
+                total_pagar = (
+                    total_bonos
+                    + Decimal(str(row.get('paid_extra_hours', 0)))
+                    - Decimal(str(row.get('loan_deduction', 0)))
+                )
+                snapshots.append(PayrollSnapshot(
+                    semana_num=week_num,
+                    empleado_no_nomina=row['no_nomina'],
+                    empleado_nombre=row['nombre'],
+                    total_pagar=total_pagar.quantize(Decimal('0.01')),
+                    desglose=row,
+                ))
+            if snapshots:
+                PayrollSnapshot.objects.bulk_create(snapshots)
 
     return results

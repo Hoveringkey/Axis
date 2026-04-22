@@ -6,6 +6,7 @@ from .views import (
     IncidenceRecordViewSet,
     LoanViewSet,
     ExtraHourBankViewSet,
+    PayrollSnapshotViewSet,
     CalculatePayrollView,
     ClosePayrollView
 )
@@ -16,6 +17,7 @@ router.register(r'incidence-catalogs', IncidenceCatalogViewSet)
 router.register(r'incidence-records', IncidenceRecordViewSet)
 router.register(r'loans', LoanViewSet)
 router.register(r'extra-hour-banks', ExtraHourBankViewSet)
+router.register(r'snapshots', PayrollSnapshotViewSet, basename='payrollsnapshot')
 
 urlpatterns = [
     path('', include(router.urls)),

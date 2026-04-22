@@ -2,13 +2,14 @@ from django.db import transaction
 from rest_framework import viewsets, views, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from .models import Employee, IncidenceCatalog, IncidenceRecord, Loan, ExtraHourBank
+from .models import Employee, IncidenceCatalog, IncidenceRecord, Loan, ExtraHourBank, PayrollSnapshot
 from .serializers import (
     EmployeeSerializer,
     IncidenceCatalogSerializer,
     IncidenceRecordSerializer,
     LoanSerializer,
-    ExtraHourBankSerializer
+    ExtraHourBankSerializer,
+    PayrollSnapshotSerializer
 )
 from .services import calculate_payroll_for_week
 
@@ -129,6 +130,20 @@ class LoanViewSet(viewsets.ModelViewSet):
 class ExtraHourBankViewSet(viewsets.ModelViewSet):
     queryset = ExtraHourBank.objects.all()
     serializer_class = ExtraHourBankSerializer
+
+class PayrollSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
+    """Read-only audit log of permanently closed payroll weeks."""
+    serializer_class = PayrollSnapshotSerializer
+
+    def get_queryset(self):
+        qs = PayrollSnapshot.objects.all()
+        semana_num = self.request.query_params.get('semana_num')
+        if semana_num is not None:
+            try:
+                qs = qs.filter(semana_num=int(semana_num))
+            except ValueError:
+                pass
+        return qs
 
 class CalculatePayrollView(views.APIView):
     def post(self, request):

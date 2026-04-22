@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Employee, IncidenceCatalog, IncidenceRecord, Loan, ExtraHourBank, Schedule
+from .models import Employee, IncidenceCatalog, IncidenceRecord, Loan, ExtraHourBank, Schedule, PayrollSnapshot
 
 class EmployeeSerializer(serializers.ModelSerializer):
     horario_lv = serializers.SlugRelatedField(
@@ -38,3 +38,8 @@ class ExtraHourBankSerializer(serializers.ModelSerializer):
     class Meta:
         model = ExtraHourBank
         fields = '__all__'
+
+class PayrollSnapshotSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PayrollSnapshot
+        fields = ['id', 'semana_num', 'fecha_cierre', 'empleado_no_nomina', 'empleado_nombre', 'total_pagar', 'desglose']

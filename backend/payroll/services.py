@@ -6,65 +6,64 @@ from django.db.models import Sum, Q
 from django.db import transaction
 from .models import Employee, IncidenceRecord, Loan, ExtraHourBank, IncidenceCatalog, PayrollSnapshot
 
-def calculate_vacation_balance(employee):
+def calculate_vacation_balance(employee) -> dict:
     if not employee.fecha_ingreso:
         return {
-            'total_entitled_days': 0,
-            'days_taken_in_current_window': 0,
-            'days_remaining': 0
+            "employee": employee.nombre,
+            "antigüedad_años": 0,
+            "periodo": "N/A",
+            "dias_con_derecho": 0,
+            "dias_disfrutados": 0,
+            "dias_restantes": 0
         }
 
     today = datetime.date.today()
     
     # Calculate exact years of service
-    years_of_service = today.year - employee.fecha_ingreso.year
+    antigüedad_años = today.year - employee.fecha_ingreso.year
     if (today.month, today.day) < (employee.fecha_ingreso.month, employee.fecha_ingreso.day):
-        years_of_service -= 1
+        antigüedad_años -= 1
         
-    if years_of_service < 0:
-        years_of_service = 0
+    if antigüedad_años < 0:
+        antigüedad_años = 0
 
-    # Apply LFT 2023 rules
-    entitled = 0
-    if years_of_service >= 1:
-        if years_of_service == 1: entitled = 12
-        elif years_of_service == 2: entitled = 14
-        elif years_of_service == 3: entitled = 16
-        elif years_of_service == 4: entitled = 18
-        elif years_of_service == 5: entitled = 20
-        elif 6 <= years_of_service <= 10: entitled = 22
-        elif 11 <= years_of_service <= 15: entitled = 24
-        elif 16 <= years_of_service <= 20: entitled = 26
-        elif 21 <= years_of_service <= 25: entitled = 28
-        else: entitled = 28 # Cap or continue pattern if needed
+    # LFT 2023 Table logic for cumulative sum
+    def get_days_for_year(y):
+        if y <= 0: return 0
+        if y == 1: return 12
+        if y == 2: return 14
+        if y == 3: return 16
+        if y == 4: return 18
+        if y == 5: return 20
+        if 6 <= y <= 10: return 22
+        if 11 <= y <= 15: return 24
+        if 16 <= y <= 20: return 26
+        if 21 <= y <= 25: return 28
+        if 26 <= y <= 30: return 30
+        return 30
 
-    # Calculate Anniversary Window
-    current_anniversary_year = today.year if (today.month, today.day) >= (employee.fecha_ingreso.month, employee.fecha_ingreso.day) else today.year - 1
-    
-    try:
-        window_start = datetime.date(current_anniversary_year, employee.fecha_ingreso.month, employee.fecha_ingreso.day)
-    except ValueError:
-        window_start = datetime.date(current_anniversary_year, 2, 28)
+    dias_con_derecho = sum(get_days_for_year(y) for y in range(1, antigüedad_años + 1))
 
-    try:
-        window_end = datetime.date(current_anniversary_year + 1, employee.fecha_ingreso.month, employee.fecha_ingreso.day)
-    except ValueError:
-        window_end = datetime.date(current_anniversary_year + 1, 2, 28)
+    # Determine current active period
+    last_anniversary_year = today.year if (today.month, today.day) >= (employee.fecha_ingreso.month, employee.fecha_ingreso.day) else today.year - 1
+    periodo_str = f"{last_anniversary_year} - {last_anniversary_year + 1}"
 
-    # Query IncidenceRecord
-    vacation_incidences = IncidenceRecord.objects.filter(
+    # Query IncidenceRecord for new vacations taken
+    new_vacations_taken = IncidenceRecord.objects.filter(
         empleado=employee,
-        tipo_incidencia__abreviatura='V',
-        fecha__gte=window_start,
-        fecha__lt=window_end
-    )
-    
-    days_taken = sum(inc.cantidad or Decimal('0.00') for inc in vacation_incidences)
-    
+        tipo_incidencia__abreviatura__in=['V', 'VACACIONES']
+    ).aggregate(total=Sum('cantidad'))['total'] or Decimal('0.00')
+
+    dias_disfrutados = float(employee.vacaciones_historicas_disfrutadas) + float(new_vacations_taken)
+    dias_restantes = float(dias_con_derecho) - dias_disfrutados
+
     return {
-        'total_entitled_days': entitled,
-        'days_taken_in_current_window': float(days_taken),
-        'days_remaining': max(0, entitled - float(days_taken))
+        "employee": employee.nombre,
+        "antigüedad_años": antigüedad_años,
+        "periodo": periodo_str,
+        "dias_con_derecho": dias_con_derecho,
+        "dias_disfrutados": dias_disfrutados,
+        "dias_restantes": max(0, dias_restantes)
     }
 
 def is_monthly_bonus_week(target_year, target_week_num):

@@ -14,6 +14,7 @@ class Employee(models.Model):
     is_active = models.BooleanField(default=True)
     horario_lv = models.ForeignKey(Schedule, on_delete=models.SET_NULL, null=True, related_name='employees_lv')
     horario_s = models.ForeignKey(Schedule, on_delete=models.SET_NULL, null=True, blank=True, related_name='employees_s')
+    vacaciones_historicas_disfrutadas = models.IntegerField(default=0)
 
     def __str__(self):
         return f"{self.no_nomina} - {self.nombre}"

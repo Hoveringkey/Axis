@@ -8,7 +8,9 @@ interface VacationData {
   periodo: string;
   dias_con_derecho: number;
   dias_disfrutados: number;
+  deuda_heredada: number;
   dias_restantes: number;
+  fecha_ingreso: string;
 }
 
 interface Props {
@@ -66,7 +68,14 @@ const VacationStatus: React.FC<Props> = ({ noNomina, employeeName }) => {
           <div className="vac-stat-label">Días con Derecho</div>
         </div>
         <div className="vac-stat">
-          <div className="vac-stat-value amber">{data.dias_disfrutados}</div>
+          <div className="vac-stat-value amber">
+            {data.dias_disfrutados + data.deuda_heredada}
+            {data.deuda_heredada > 0 && (
+              <span className="badge badge-debt">
+                (Incluye {data.deuda_heredada}d de Deuda)
+              </span>
+            )}
+          </div>
           <div className="vac-stat-label">Días Disfrutados</div>
         </div>
         <div className="vac-stat">
@@ -85,8 +94,13 @@ const VacationStatus: React.FC<Props> = ({ noNomina, employeeName }) => {
           </span>
         </div>
         <div className="vac-meta-item">
-          <span className="vac-meta-label">Período (Año {data.antigüedad_años + 1})</span>
-          <span className="vac-meta-value">{data.periodo}</span>
+          <span className="vac-meta-label">Período</span>
+          <span className="vac-meta-value">
+            {data.periodo}
+            <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>
+              {' '} | Ingreso: {data.fecha_ingreso}
+            </span>
+          </span>
         </div>
       </div>
     </div>

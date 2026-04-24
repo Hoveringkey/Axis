@@ -260,8 +260,8 @@ const EmployeeDirectory: React.FC = () => {
             suppressPaginationPanel={true}
             domLayout="autoHeight"
             animateRows={true}
-            rowHeight={44}
-            headerHeight={44}
+            rowHeight={52}
+            headerHeight={52}
             onGridReady={onGridReady}
             onRowClicked={(e) => {
               if (e.data?.no_nomina) {

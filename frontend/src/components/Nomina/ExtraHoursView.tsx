@@ -134,8 +134,8 @@ const ExtraHoursView: React.FC = () => {
             suppressPaginationPanel={true}
             domLayout="autoHeight"
             animateRows={true}
-            rowHeight={44}
-            headerHeight={44}
+            rowHeight={52}
+            headerHeight={52}
             overlayLoadingTemplate={
               '<span style="color:var(--accent-primary);font-family:Inter,sans-serif;font-size:14px">Cargando banco de horas…</span>'
             }

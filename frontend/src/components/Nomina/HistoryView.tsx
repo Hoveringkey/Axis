@@ -229,8 +229,8 @@ const HistoryView: React.FC = () => {
               suppressPaginationPanel={true}
               domLayout="autoHeight"
               animateRows={true}
-              rowHeight={56}
-              headerHeight={48}
+              rowHeight={52}
+              headerHeight={52}
               defaultColDef={{ resizable: true }}
               rowStyle={{ borderBottom: '1px solid var(--bg-secondary)' }}
               autoSizeStrategy={{ type: 'fitGridWidth' }}

@@ -184,9 +184,9 @@ def calculate_vacation_balance(employee) -> dict:
     period_end = safe_replace_year(ingreso, ingreso.year + antigüedad_años + 1)
     
     # 2. Historical LFT Calculation
-    # Calculate total_historico_ganado by summing LFT days for every completed year (1 to antigüedad_años)
+    # Calculate total_historico_ganado by summing LFT days for past years (excluding the current unexpired year)
     total_historico_ganado = 0
-    for y in range(1, antigüedad_años + 1):
+    for y in range(1, antigüedad_años):
         anniv_date = safe_replace_year(ingreso, ingreso.year + y)
         total_historico_ganado += get_historical_lft_days(y, anniv_date)
     
@@ -197,15 +197,15 @@ def calculate_vacation_balance(employee) -> dict:
     deuda_arrastre = balance_historico if balance_historico < 0 else 0
     
     # 4. Current Year Rights
-    # Determine dias_lft_actual based on current year of service (antigüedad_años + 1)
-    anniv_actual = safe_replace_year(ingreso, ingreso.year + antigüedad_años + 1)
-    dias_lft_actual = get_historical_lft_days(antigüedad_años + 1, anniv_actual)
-    
-    # Fix the New Hire Rule: If antigüedad_años == 0, dias_lft_actual must strictly be 0.
-    if antigüedad_años == 0:
+    # Determine dias_lft_actual based on the completed seniority year (antigüedad_años)
+    if antigüedad_años > 0:
+        dias_lft_actual = get_historical_lft_days(antigüedad_años, period_start)
+    else:
+        # New Hire Rule: If antigüedad_años == 0, dias_lft_actual must strictly be 0.
         dias_lft_actual = 0
-        
-    dias_con_derecho_neto = dias_lft_actual + deuda_arrastre
+
+    dias_con_derecho_bruto = dias_lft_actual
+    deuda_heredada = abs(deuda_arrastre)
     
     # 5. Current Period Consumption
     # Query IncidenceRecord for 'V' or 'VACACIONES' within the current anniversary window
@@ -219,15 +219,20 @@ def calculate_vacation_balance(employee) -> dict:
     vacaciones_tomadas_periodo = float(vacaciones_tomadas_periodo)
     
     # 6. Final Computation & Return Contract
-    dias_restantes = float(dias_con_derecho_neto) - vacaciones_tomadas_periodo
+    dias_restantes = float(dias_con_derecho_bruto) - float(deuda_heredada) - vacaciones_tomadas_periodo
+    
+    # Format the period string: (Año X) DD/Mon/YY - DD/Mon/YY
+    periodo_str = f"(Año {antigüedad_años + 1}) {period_start.strftime('%d/%b/%y')} - {period_end.strftime('%d/%b/%y')}"
     
     return {
         "employee": employee.nombre,
         "antigüedad_años": antigüedad_años,
-        "periodo": f"{period_start.strftime('%d/%b/%Y')} - {period_end.strftime('%d/%b/%Y')}",
-        "dias_con_derecho": float(dias_con_derecho_neto),
+        "periodo": periodo_str,
+        "dias_con_derecho": float(dias_con_derecho_bruto),
         "dias_disfrutados": vacaciones_tomadas_periodo,
-        "dias_restantes": float(dias_restantes)
+        "deuda_heredada": float(deuda_heredada),
+        "dias_restantes": float(dias_restantes),
+        "fecha_ingreso": employee.fecha_ingreso.strftime('%d/%m/%Y')
     }
 
 def is_monthly_bonus_week(target_year, target_week_num):
@@ -419,6 +424,7 @@ def calculate_payroll_for_week(week_num, dry_run=True):
         if loan:
             import math
             total_pagos = math.ceil(loan.monto_total / loan.abono_semanal) if loan.abono_semanal > 0 else 0
+            pagos_realizados = loan.pagos_realizados
             has_psg_or_i = any(inc.tipo_incidencia.abreviatura in ['PSG', 'I'] for inc in week_incidences)
             if not has_psg_or_i and loan.pagos_realizados < total_pagos and loan.is_active:
                 loan_deduction = loan.abono_semanal
@@ -433,18 +439,19 @@ def calculate_payroll_for_week(week_num, dry_run=True):
         # 6. Physical Incidences (Ausentismos) — date-injected format
         ausentismos_dates: dict[str, list[str]] = {}
         for inc in week_incidences:
+            full_name = inc.tipo_incidencia.tipo
             abrev = inc.tipo_incidencia.abreviatura
             if abrev not in ['HX', 'DA']:
                 date_str = inc.fecha.strftime('%Y-%m-%d')
-                if abrev not in ausentismos_dates:
-                    ausentismos_dates[abrev] = []
-                if date_str not in ausentismos_dates[abrev]:
-                    ausentismos_dates[abrev].append(date_str)
+                if full_name not in ausentismos_dates:
+                    ausentismos_dates[full_name] = []
+                if date_str not in ausentismos_dates[full_name]:
+                    ausentismos_dates[full_name].append(date_str)
 
         ausentismos_parts = []
-        for abrev, dates in ausentismos_dates.items():
+        for full_name, dates in ausentismos_dates.items():
             dates.sort()
-            ausentismos_parts.append(f"{abrev}:{('|').join(dates)}")
+            ausentismos_parts.append(f"{full_name}:{('|').join(dates)}")
         ausentismos_str = ", ".join(ausentismos_parts)
 
         # 7. Filter: Only append if there are ANY variations

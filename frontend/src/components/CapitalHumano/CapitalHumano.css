@@ -375,12 +375,35 @@
   --ag-header-background-color: var(--bg-secondary);
   --ag-header-foreground-color: var(--text-muted);
   --ag-foreground-color:        var(--text-main);
-  --ag-border-color:            var(--border-color);
-  --ag-row-hover-color:         var(--accent-light);
+  --ag-border-color:            transparent;
+  --ag-row-border-color:        rgba(0, 0, 0, 0.05);
+  --ag-row-hover-color:         rgba(0, 0, 0, 0.02);
   --ag-selected-row-background-color: rgba(79, 70, 229, 0.08);
   --ag-font-family:             'Inter', sans-serif;
   --ag-font-size:               13px;
   --ag-cell-horizontal-padding: 16px;
+  --ag-header-column-separator-display: none;
+  --ag-header-column-resize-handle-display: none;
+}
+
+.ag-theme-alpine .ag-header {
+  font-weight: 600;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.ag-theme-alpine .ag-header-cell-label {
+  font-weight: 600;
+}
+
+.ag-theme-alpine .ag-cell {
+  display: flex;
+  align-items: center;
+  border-right: none !important;
+}
+
+/* Separation for the first row of data */
+.ag-theme-alpine .ag-row-first .ag-cell {
+  padding-top: 12px;
 }
 
 /* Active badge */
@@ -404,6 +427,17 @@
   background: var(--bg-secondary);
   color: var(--text-muted);
   border: 1px solid var(--border-color);
+}
+
+.badge-debt {
+  background: #fef2f2;
+  color: #991b1b;
+  border: 1px solid #fee2e2;
+  font-size: 0.65rem;
+  margin-left: 0.5rem;
+  vertical-align: middle;
+  text-transform: none;
+  padding: 0.1rem 0.4rem;
 }
 
 /* Spinner (reused in VacationStatus) */

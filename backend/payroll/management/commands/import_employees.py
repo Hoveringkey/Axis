@@ -9,7 +9,7 @@ class Command(BaseCommand):
     help = 'Unified master ETL to onboard employees, map schedules, and migrate historical LFT data.'
 
     def add_arguments(self, parser):
-        parser.add_argument('csv_file', type=str, help='The path to the master CSV file')
+        parser.add_argument('csv_file', type=str, help='The path to the master CSV file (e.g., datos_empleados.csv)')
 
     def handle(self, *args, **options):
         csv_file_path = options['csv_file']
@@ -60,7 +60,7 @@ class Command(BaseCommand):
                                 self.stdout.write(self.style.WARNING(f"Invalid date format for employee {no_nomina}: '{fecha_ingreso_str}'. Expected M/D/YYYY."))
                         
                         # Vacations: cast to int
-                        vacaciones_str = data.get('vacaciones_disfrutadas')
+                        vacaciones_str = data.get('total_vacaciones_disfrutadas')
                         vacaciones = 0
                         if vacaciones_str:
                             try:
@@ -72,7 +72,7 @@ class Command(BaseCommand):
                         obj, created = Employee.objects.update_or_create(
                             no_nomina=no_nomina,
                             defaults={
-                                'nombre': data.get('nombre', ''),
+                                'nombre': data.get('empleado', ''),
                                 'puesto': data.get('puesto', ''),
                                 'horario_lv': horario_lv,
                                 'horario_s': horario_s,

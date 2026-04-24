@@ -122,6 +122,29 @@ def get_lft_days_for_year(year: int) -> int:
     cycles = (year - 6) // 5 + 1
     return 20 + (cycles * 2)
 
+def get_historical_lft_days(year: int, anniversary_date: datetime.date) -> int:
+    """
+    Calculates LFT days based on the anniversary date and seniority year.
+    Supports transitional logic for LFT 2023.
+    """
+    if year <= 0:
+        return 0
+    
+    cutoff_2023 = datetime.date(2023, 1, 1)
+    
+    if anniversary_date < cutoff_2023:
+        # Pre-2023 rules: Year 1: 6, Year 2: 8, Year 3: 10, Year 4: 12, Years 5-9: 14, etc.
+        if year <= 4:
+            return 4 + (year * 2)
+        cycles = (year - 5) // 5 + 1
+        return 12 + (cycles * 2)
+    else:
+        # 2023 rules: Year 1: 12, Year 2: 14, Year 3: 16, Year 4: 18, Year 5: 20, Years 6-10: 22, etc.
+        if year <= 5:
+            return 10 + (year * 2)
+        cycles = (year - 6) // 5 + 1
+        return 20 + (cycles * 2)
+
 def safe_replace_year(date_obj, year):
     """Safely replace the year of a date, handling February 29 leap year cases."""
     try:
@@ -162,7 +185,10 @@ def calculate_vacation_balance(employee) -> dict:
     
     # 2. Historical LFT Calculation
     # Calculate total_historico_ganado by summing LFT days for every completed year (1 to antigüedad_años)
-    total_historico_ganado = sum(get_lft_days_for_year(y) for y in range(1, antigüedad_años + 1))
+    total_historico_ganado = 0
+    for y in range(1, antigüedad_años + 1):
+        anniv_date = safe_replace_year(ingreso, ingreso.year + y)
+        total_historico_ganado += get_historical_lft_days(y, anniv_date)
     
     # 3. The 'Corte de Caja' (Snapshot & Rule)
     balance_historico = total_historico_ganado - employee.vacaciones_historicas_disfrutadas
@@ -172,10 +198,12 @@ def calculate_vacation_balance(employee) -> dict:
     
     # 4. Current Year Rights
     # Determine dias_lft_actual based on current year of service (antigüedad_años + 1)
-    dias_lft_actual = get_lft_days_for_year(antigüedad_años + 1)
-    # Exception: If antigüedad_años == 0, grant the first tier (12 days)
+    anniv_actual = safe_replace_year(ingreso, ingreso.year + antigüedad_años + 1)
+    dias_lft_actual = get_historical_lft_days(antigüedad_años + 1, anniv_actual)
+    
+    # Fix the New Hire Rule: If antigüedad_años == 0, dias_lft_actual must strictly be 0.
     if antigüedad_años == 0:
-        dias_lft_actual = 12
+        dias_lft_actual = 0
         
     dias_con_derecho_neto = dias_lft_actual + deuda_arrastre
     

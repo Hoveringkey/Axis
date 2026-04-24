@@ -1,0 +1,41 @@
+﻿no_nomina,empleado,fecha_ingreso,puesto,horario_l_v,horario_s,total_vacaciones_disfrutadas,total_vacaciones_con_derecho,total_vacaciones_pendientes
+102,Carrillo Valdez Ernesto,4/1/2011,JEFE TALLER,07:00 - 16:00,,224,234,10
+133,Plascencia Lopez Miguel Angel,7/3/2011,MEZCLADOR,08:00 - 17:00,08:00 - 11:00,202,210,8
+187,Mora Ibarra Ricardo,5/29/2018,AUX TORNO,07:00 - 16:00,08:00 - 11:00,110,100,-10
+437,Ramirez Canales Hugo Cesar,8/3/2018,JEFE DE ALMACEN,08:00 - 17:00,08:00 - 11:00,99,100,1
+513,Hernandez Rodriguez Juan Carlos,8/14/2017,TECNICO EN PROCESOS,08:00 - 17:00,08:00 - 11:00,116,116,0
+808,Guerrero Flores Jorge,7/1/2016,GERENTE OPERACIONES ,08:00 - 17:00,,137,130,-7
+824,Perez Sanchez Moises Valentin,2/22/2021,COORDINADOR DE Mantto,08:00 - 17:00,,64,74,10
+898,Perez Barajas Leticia,12/19/2022,GENERALISTA RH,08:00 - 17:00,,47,42,-5
+928,Plascencia Pineda Miguel Angel,3/13/2026,AUXILIAR MEZCLAS,08:00 - 17:00,08:00 - 11:00,0,0,0
+979,Gallegos Morales Wendy Carolina,8/5/2024,CONTADORA,08:00 - 17:00,,15,12,-3
+980,Saleme Valdes Jetro,11/4/2024,AUXILIAR DE CALIDAD,08:00 - 13:00,,19,12,-7
+992,Sustaita Munoz Alejandro,1/12/2026,COORDINADOR DE MEJORA,08:00 - 15:00,,1,0,-1
+1002,Martinez Gutierrez Alejandro Siraham,3/5/2026,AUXILIAR ALMACEN,08:00 - 17:00,08:00 - 11:00,0,0,0
+1007,Ibarra Sandoval Zacarias David,3/30/2026,AUXILIAR ALMACEN,08:00 - 17:00,08:00 - 11:00,0,0,0
+1008,Leyva Ruiz Carlo Leonel,4/7/2026,AUX MANTENIMIENTO,08:00 - 17:00,08:00 - 11:00,0,0,0
+107,Olvera Carmona Santa Isabel,4/1/2011,A,06:00 - 14:00,06:00 - 14:00,210,234,24
+321,Dominguez Duran Maria Guadalupe,5/24/2022,A,06:00 - 14:00,06:00 - 14:00,42,42,0
+352,Magana Elizondo Matilde,9/11/2015,A,06:00 - 14:00,06:00 - 14:00,149,144,-5
+403,Ramirez Avila Edgar Misael,1/17/2018,C,21:30 - 06:00,,107,122,15
+505,Borceguin Lucano Virginia,6/22/2020,A,06:00 - 14:00,06:00 - 14:00,65,68,3
+530,Chavez Navarrete Cristina,1/2/2018,INTENDENTE,08:00 - 17:00,,104,122,18
+568,Reyes Martinez Esmeralda Rubi,8/3/2018,SUPERVISOR,06:00 - 14:00,06:00 - 14:00,86,100,14
+570,Rodri­guez Ramos Gidguet,12/3/2025,C,21:30 - 06:00,,0,0,0
+595,Aranda Estrada Raul Alejandro,11/30/2018,SUPERVISOR,21:30 - 06:00,,85,100,15
+678,Ramirez Davila Ana Marilu,8/28/2019,A,06:00 - 14:00,06:00 - 14:00,84,84,0
+696,Garcia Bejines Lucia Guadalupe,6/18/2025,A,06:00 - 14:00,06:00 - 14:00,1,0,-1
+733,Michel Juarez Alexis Abraham,2/17/2025,C,21:30 - 06:00,,1,12,11
+748,Orozco Mora Francisco Javier,3/27/2026,A,06:00 - 14:00,06:00 - 14:00,0,0,0
+800,Gutierrez Gomez Yadira Alejandra,2/13/2025,AUXILIAR ALMACEN,08:00 - 17:00,08:00 - 11:00,11,12,1
+813,Lopez Campos Jessica Mayde,5/18/2022,C,21:30 - 06:00,,42,42,0
+870,Ramirez Davila Claudia Maribel,3/22/2022,A,06:00 - 14:00,06:00 - 14:00,45,60,15
+873,Ibarra Ramirez Olga Lidia,5/3/2022,C,21:30 - 06:00,,44,42,-2
+901,Sanchez Ista Jose Manuel,2/20/2023,C,21:30 - 06:00,,27,42,15
+930,Verastegui Ornelas Jessica,1/14/2026,C,21:30 - 06:00,,0,0,0
+971,Almaguer Balderrama Sandra Violeta,3/5/2024,C,21:30 - 06:00,,19,26,7
+972,Arciga Cibrian Margarita,3/5/2024,A,06:00 - 14:00,06:00 - 14:00,19,26,7
+1006,Ocana Fernandez Walter Arbey,3/23/2026,A,06:00 - 14:00,06:00 - 14:00,0,0,0
+1009,Medina Suarez Monica,4/7/2026,A,06:00 - 14:00,06:00 - 14:00,0,0,0
+1010,Rojas Mendoza Manuel Alejandro,4/13/2026,C,21:30 - 06:00,,0,0,0
+1011,Medina Higareda Jesus,4/15/2026,A,06:00 - 14:00,06:00 - 14:00,0,0,0

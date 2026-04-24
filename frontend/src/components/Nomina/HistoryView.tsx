@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useMemo } from 'react';
+import { ClockCounterClockwise, FolderOpen, MagnifyingGlass, WarningCircle } from '@phosphor-icons/react';
 import { AgGridReact } from 'ag-grid-react';
 import type { ColDef, ValueGetterParams } from 'ag-grid-community';
 import api from '../../api/axios';
@@ -69,10 +70,6 @@ const buildColumnDefs = (): ColDef<PayrollSnapshot>[] => [
   },
 
   // 3. Resumen Operativo – token pills
-  // valueGetter extracts the full desglose so IncidencesCellRenderer always
-  // gets a plain DesgloseRow with the correct `ausentismos` string — this is
-  // the fix for HistoryView date rendering: snap.desglose IS a DesgloseRow
-  // with the v2 ausentismos string written at close-time by services.py.
   {
     headerName: 'Resumen Operativo',
     flex: 3,
@@ -80,7 +77,7 @@ const buildColumnDefs = (): ColDef<PayrollSnapshot>[] => [
     sortable: false,
     valueGetter: (p: ValueGetterParams<PayrollSnapshot>) => p.data?.desglose ?? null,
     cellRenderer: ({ value }: { value: DesgloseRow | null }) =>
-      value ? <IncidencesCellRenderer data={value} {...({} as never)} /> : null,
+      value ? <IncidencesCellRenderer data={value} {...({} as any)} /> : null,
     autoHeight: true,
   },
 
@@ -93,7 +90,7 @@ const buildColumnDefs = (): ColDef<PayrollSnapshot>[] => [
     valueGetter: (p: ValueGetterParams<PayrollSnapshot>) =>
       p.data ? computeSnapshotTotal(p.data) : 0,
     cellRenderer: ({ value, data }: { value: number; data: PayrollSnapshot }) =>
-      data ? <TotalPillCellRenderer value={value} data={data.desglose} {...({} as never)} /> : null,
+      data ? <TotalPillCellRenderer value={value} data={data.desglose} {...({} as any)} /> : null,
   },
 ];
 
@@ -151,10 +148,11 @@ const HistoryView: React.FC = () => {
     <div className="module-page">
 
       {/* ── Header ── */}
-      <div className="module-page-header">
-        <h1>📜 Historia de Nómina</h1>
+        <h1 style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
+          <ClockCounterClockwise size={32} weight="duotone" color="var(--accent-primary)" />
+          Historia de Nómina
+        </h1>
         <p>Auditoría inmutable de períodos de nómina permanentemente cerrados.</p>
-      </div>
 
       {/* ── Search Bar ── */}
       <div style={{
@@ -213,24 +211,29 @@ const HistoryView: React.FC = () => {
           background: 'var(--error-bg)', border: '1px solid var(--error-border)',
           borderRadius: '8px', padding: '0.75rem 1rem',
           color: 'var(--error-text)', fontSize: '0.875rem', marginBottom: '1rem',
+          display: 'flex', alignItems: 'center', gap: '0.5rem'
         }}>
-          ⚠️ {error}
+          <WarningCircle size={18} weight="fill" />
+          {error}
         </div>
       )}
 
       {/* ── AG Grid ── */}
       {snapshots.length > 0 && (
-        <div className="eh-grid-wrapper">
-          <div className="ag-theme-alpine" style={{ height: '600px', width: '100%' }}>
+        <div className="eh-grid-wrapper" style={{ padding: '1.5rem' }}>
+          <div className="ag-theme-alpine" style={{ width: '100%' }}>
             <AgGridReact<PayrollSnapshot>
               rowData={snapshots}
               columnDefs={columnDefs}
-              pagination={true}
-              paginationPageSize={25}
+              pagination={false}
+              suppressPaginationPanel={true}
+              domLayout="autoHeight"
               animateRows={true}
               rowHeight={56}
               headerHeight={48}
               defaultColDef={{ resizable: true }}
+              rowStyle={{ borderBottom: '1px solid var(--bg-secondary)' }}
+              autoSizeStrategy={{ type: 'fitGridWidth' }}
             />
           </div>
         </div>
@@ -242,8 +245,9 @@ const HistoryView: React.FC = () => {
           textAlign: 'center', padding: '4rem 2rem',
           background: 'var(--card-bg)', border: '1px solid var(--border-color)',
           borderRadius: '12px', color: 'var(--text-muted)',
+          display: 'flex', flexDirection: 'column', alignItems: 'center'
         }}>
-          <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🗂️</div>
+          <FolderOpen size={48} weight="duotone" style={{ marginBottom: '1rem', color: 'var(--text-muted)' }} />
           <p style={{ margin: 0, fontSize: '0.95rem' }}>
             No se encontraron registros con variaciones para la Semana {semanaQueried}.<br />
             Todos los empleados tuvieron una semana limpia, o la nómina aún no se ha cerrado.
@@ -257,10 +261,11 @@ const HistoryView: React.FC = () => {
           textAlign: 'center', padding: '4rem 2rem',
           background: 'var(--card-bg)', border: '1px solid var(--border-color)',
           borderRadius: '12px', color: 'var(--text-muted)',
+          display: 'flex', flexDirection: 'column', alignItems: 'center'
         }}>
-          <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🔍</div>
+          <MagnifyingGlass size={48} weight="duotone" style={{ marginBottom: '1rem', color: 'var(--accent-primary)' }} />
           <p style={{ margin: 0, fontSize: '0.95rem' }}>
-            Ingresa el número de semana que deseas auditar y presiona <strong>Consultar</strong>.
+            Ingresa el número de semana que deseas auditar and presiona <strong>Consultar</strong>.
           </p>
         </div>
       )}

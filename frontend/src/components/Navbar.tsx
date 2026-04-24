@@ -1,39 +1,59 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
+import { 
+  House, 
+  Users, 
+  IdentificationCard, 
+  FileArrowDown, 
+  Briefcase, 
+  ClipboardText, 
+  CreditCard, 
+  Coins, 
+  Calculator, 
+  Timer, 
+  ClockCounterClockwise,
+  Lightning,
+  CaretDown,
+  SignOut
+} from '@phosphor-icons/react';
 import './Navbar.css';
 
 interface DropdownItem {
   label: string;
   to: string;
-  icon: string;
+  icon: React.ReactNode;
 }
 
 interface NavSection {
   label: string;
+  icon: React.ReactNode;
   items: DropdownItem[];
 }
 
 const NAV_SECTIONS: NavSection[] = [
   {
     label: 'Capital Humano',
+    icon: <Users size={20} />,
     items: [
-      { label: 'Directorio', to: '/capital-humano', icon: '👥' },
-      { label: 'Importar Empleados', to: '/capital-humano/importar', icon: '📥' },
+      { label: 'Directorio', to: '/capital-humano', icon: <IdentificationCard size={18} /> },
+      { label: 'Importar Empleados', to: '/capital-humano/importar', icon: <FileArrowDown size={18} /> },
     ],
   },
   {
     label: 'Operaciones',
+    icon: <Briefcase size={20} />,
     items: [
-      { label: 'Incidencias', to: '/operaciones/incidencias', icon: '📋' },
-      { label: 'Préstamos', to: '/operaciones/prestamos', icon: '💳' },
+      { label: 'Incidencias', to: '/operaciones/incidencias', icon: <ClipboardText size={18} /> },
+      { label: 'Préstamos', to: '/operaciones/prestamos', icon: <CreditCard size={18} /> },
     ],
   },
   {
     label: 'Nómina',
+    icon: <Coins size={20} />,
     items: [
-      { label: 'Calcular Nómina', to: '/nomina/calcular', icon: '🧮' },
-      { label: 'Banco Horas Extra', to: '/nomina/horas-extra', icon: '⏱️' },
-      { label: 'Historia', to: '/nomina/historia', icon: '📜' },
+      { label: 'Calcular Nómina', to: '/nomina/calcular', icon: <Calculator size={18} /> },
+      { label: 'Banco Horas Extra', to: '/nomina/horas-extra', icon: <Timer size={18} /> },
+      { label: 'Historia', to: '/nomina/historia', icon: <ClockCounterClockwise size={18} /> },
     ],
   },
 ];
@@ -44,7 +64,6 @@ const Navbar: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (navRef.current && !navRef.current.contains(e.target as Node)) {
@@ -55,7 +74,6 @@ const Navbar: React.FC = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Close dropdown on route change
   useEffect(() => {
     setOpenSection(null);
   }, [location.pathname]);
@@ -75,26 +93,25 @@ const Navbar: React.FC = () => {
 
   return (
     <nav className="navbar" ref={navRef}>
-      {/* Brand */}
       <NavLink to="/" className="navbar-brand" onClick={() => setOpenSection(null)}>
-        <div className="navbar-brand-icon">⚡</div>
+        <div className="navbar-brand-icon">
+          <Lightning size={24} weight="fill" />
+        </div>
         <span className="navbar-brand-text">Nómina 360°</span>
       </NavLink>
 
-      {/* Nav Items */}
       <ul className="navbar-nav">
-        {/* Dashboard */}
         <li className="nav-item">
           <NavLink
             to="/"
             end
             className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
           >
+            <House size={20} style={{ marginRight: '8px' }} />
             Dashboard
           </NavLink>
         </li>
 
-        {/* Dropdown Sections */}
         {NAV_SECTIONS.map(section => (
           <li
             key={section.label}
@@ -105,18 +122,11 @@ const Navbar: React.FC = () => {
               onClick={() => toggleSection(section.label)}
               aria-expanded={openSection === section.label}
             >
+              <span className="nav-link-icon-container" style={{ marginRight: '8px', display: 'flex' }}>
+                {section.icon}
+              </span>
               {section.label}
-              <svg
-                className="nav-chevron"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <polyline points="6 9 12 15 18 9" />
-              </svg>
+              <CaretDown size={14} weight="bold" className="nav-chevron" />
             </button>
 
             <div className="dropdown-menu" role="menu">
@@ -143,14 +153,9 @@ const Navbar: React.FC = () => {
         ))}
       </ul>
 
-      {/* Right side */}
       <div className="navbar-right">
         <button className="nav-logout-btn" onClick={handleLogout}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-            <polyline points="16 17 21 12 16 7" />
-            <line x1="21" y1="12" x2="9" y2="12" />
-          </svg>
+          <SignOut size={18} style={{ marginRight: '6px' }} />
           Salir
         </button>
       </div>

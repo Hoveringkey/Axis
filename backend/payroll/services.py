@@ -6,6 +6,109 @@ from django.db.models import Sum, Q
 from django.db import transaction
 from .models import Employee, IncidenceRecord, Loan, ExtraHourBank, IncidenceCatalog, PayrollSnapshot
 
+def get_current_payroll_week():
+    """Returns the current ISO-8601 week number."""
+    return datetime.date.today().isocalendar()[1]
+
+def get_dashboard_metrics() -> dict:
+    """
+    Dashboard Data Engine: Aggregates scalars, LFT alerts, and graph data 
+    for the S&OP/HR Dashboard.
+    """
+    today = datetime.date.today()
+    current_week = get_current_payroll_week()
+    
+    # Calculate previous week with year-boundary awareness
+    prev_date = today - timedelta(weeks=1)
+    prev_week = prev_date.isocalendar()[1]
+    
+    # --- Scalars ---
+    active_employees = Employee.objects.filter(is_active=True)
+    active_count = active_employees.count()
+    turno_a_count = active_employees.filter(puesto='A').count()
+    turno_c_count = active_employees.filter(puesto='C').count()
+    
+    incidencias_semana_actual = IncidenceRecord.objects.filter(semana_num=current_week).count()
+    incidencias_semana_pasada = IncidenceRecord.objects.filter(semana_num=prev_week).count()
+    
+    # --- Radar LFT: proximos_aniversarios ---
+    limit_15_days = today + timedelta(days=15)
+    proximos_aniversarios = []
+    
+    for emp in active_employees.filter(fecha_ingreso__isnull=False):
+        # Calculate anniversary this year
+        anniv = safe_replace_year(emp.fecha_ingreso, today.year)
+        # If it already happened this year, check next year (e.g., Dec to Jan transition)
+        if anniv < today:
+            anniv = safe_replace_year(emp.fecha_ingreso, today.year + 1)
+            
+        if today <= anniv <= limit_15_days:
+            proximos_aniversarios.append({
+                "name": emp.nombre,
+                "years_reached": anniv.year - emp.fecha_ingreso.year,
+                "exact_date": anniv.strftime('%d/%b/%Y')
+            })
+
+    # --- Graph 1: tendencia_horas_extras (Last 4 ISO weeks) ---
+    tendencia_horas_extras = []
+    for i in range(3, -1, -1):
+        target_date = today - timedelta(weeks=i)
+        w_year, w_num, _ = target_date.isocalendar()
+        total_hx = IncidenceRecord.objects.filter(
+            semana_num=w_num,
+            tipo_incidencia__abreviatura='HX'
+        ).aggregate(total=Sum('cantidad'))['total'] or Decimal('0.00')
+        tendencia_horas_extras.append({'semana': w_num, 'horas': float(total_hx)})
+
+    # --- Graph 2: ausentismo_por_turno ---
+    # We define negative incidences as 'F' (Falta) or 'PSG' (Permiso sin Goce)
+    neg_abrevs = ['F', 'PSG']
+    
+    def get_neg_count(week_num, puesto_filter):
+        return IncidenceRecord.objects.filter(
+            semana_num=week_num,
+            empleado__puesto=puesto_filter,
+            tipo_incidencia__abreviatura__in=neg_abrevs
+        ).count()
+    
+    ausentismo_por_turno = {
+        'actual': {
+            'A': get_neg_count(current_week, 'A'),
+            'C': get_neg_count(current_week, 'C')
+        },
+        'pasada': {
+            'A': get_neg_count(prev_week, 'A'),
+            'C': get_neg_count(prev_week, 'C')
+        }
+    }
+
+    # --- Graph 3: pasivo_vacacional_por_puesto ---
+    pasivo_map = defaultdict(float)
+    for emp in active_employees:
+        balance_data = calculate_vacation_balance(emp)
+        pasivo_map[emp.puesto] += balance_data['dias_restantes']
+    
+    pasivo_vacacional_por_puesto = [
+        {'puesto': p, 'dias_adeudados': d} 
+        for p, d in pasivo_map.items()
+    ]
+
+    return {
+        "scalars": {
+            "active_employees_count": active_count,
+            "turno_a_count": turno_a_count,
+            "turno_c_count": turno_c_count,
+            "incidencias_semana_actual": incidencias_semana_actual,
+            "incidencias_semana_pasada": incidencias_semana_pasada,
+        },
+        "radar_lft": {
+            "proximos_aniversarios": proximos_aniversarios
+        },
+        "graph_overtime": tendencia_horas_extras,
+        "graph_absenteeism": ausentismo_por_turno,
+        "graph_vacation_liability": pasivo_vacacional_por_puesto
+    }
+
 def get_lft_days_for_year(year: int) -> int:
     """
     Helper logic to determine LFT vacation days based on seniority year.
@@ -215,10 +318,10 @@ def calculate_payroll_for_week(week_num, dry_run=True):
             weekly_bonus = Decimal('126.00')
             weekly_bonus_deduction = Decimal('18.00')
             
-        # Deduct $18 per physical absence (excluding bonuses/extra hours)
+        # Deduct $18 per physical absence (excluding bonuses/extra hours AND Vacations)
         physical_absences = sum(
             (inc.cantidad or Decimal('0.00') for inc in week_incidences
-            if inc.tipo_incidencia.abreviatura not in ['HX', 'DA']),
+            if inc.tipo_incidencia.abreviatura not in ['HX', 'DA', 'V', 'VACACIONES']),
             Decimal('0.00')
         )
         final_weekly_bonus = max(Decimal('0.00'), weekly_bonus - (weekly_bonus_deduction * Decimal(str(physical_absences))))
@@ -286,12 +389,10 @@ def calculate_payroll_for_week(week_num, dry_run=True):
         total_pagos = 0
 
         if loan:
-            pagos_realizados = loan.pagos_realizados
-            if loan.abono_semanal > 0:
-                total_pagos = math.ceil(loan.monto_total / loan.abono_semanal)
-                
+            import math
+            total_pagos = math.ceil(loan.monto_total / loan.abono_semanal) if loan.abono_semanal > 0 else 0
             has_psg_or_i = any(inc.tipo_incidencia.abreviatura in ['PSG', 'I'] for inc in week_incidences)
-            if not has_psg_or_i and loan.pagos_realizados < total_pagos:
+            if not has_psg_or_i and loan.pagos_realizados < total_pagos and loan.is_active:
                 loan_deduction = loan.abono_semanal
                 
             # Block IV: PSG Rule
@@ -369,5 +470,27 @@ def calculate_payroll_for_week(week_num, dry_run=True):
                 ))
             if snapshots:
                 PayrollSnapshot.objects.bulk_create(snapshots)
+
+            # --- Sprint 6: Transactional Loan Tracker ---
+            # Update loans for all employees who had a deduction this week
+            loan_ids_to_increment = [
+                loans_dict[row['no_nomina']].id 
+                for row in results if row.get('loan_deduction', 0) > 0
+            ]
+            
+            if loan_ids_to_increment:
+                from django.db.models import F
+                # Increment pagos_realizados
+                Loan.objects.filter(id__in=loan_ids_to_increment).update(pagos_realizados=F('pagos_realizados') + 1)
+                
+                # Check for completed loans (using math.ceil to match calculation logic)
+                for l_id in loan_ids_to_increment:
+                    loan_obj = Loan.objects.get(id=l_id)
+                    import math
+                    limit = math.ceil(loan_obj.monto_total / loan_obj.abono_semanal) if loan_obj.abono_semanal > 0 else 0
+                    if loan_obj.pagos_realizados >= limit:
+                        loan_obj.is_active = False
+                        loan_obj.status = 'PAGADO'
+                        loan_obj.save()
 
     return results

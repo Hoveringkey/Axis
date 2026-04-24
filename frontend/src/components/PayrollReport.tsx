@@ -10,7 +10,7 @@
  * filter, so this is a defensive client-side guard.)
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import type { ColDef } from 'ag-grid-community';
 import api from '../api/axios';
@@ -25,6 +25,12 @@ import {
   NominaPillCellRenderer,
   formatCurrency,
 } from './Nomina/GridRenderers';
+import { 
+  WarningCircle, 
+  CheckCircle, 
+  Calculator,
+  CircleNotch 
+} from '@phosphor-icons/react';
 import type { DesgloseRow } from './Nomina/GridRenderers';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -83,7 +89,7 @@ const buildColumnDefs = (): ColDef<CalcRow>[] => [
     type: 'numericColumn',
     valueGetter: (p) => (p.data ? computeTotal(p.data) : 0),
     cellRenderer: ({ value, data }: { value: number; data: CalcRow }) =>
-      data ? <TotalPillCellRenderer value={value} data={data} {...({} as never)} /> : null,
+      data ? <TotalPillCellRenderer value={value} data={data} {...({} as any)} /> : null,
   },
 ];
 
@@ -98,6 +104,17 @@ const PayrollReport: React.FC = () => {
   const [isCalculating, setIsCalculating] = useState(false);
   const [isClosing, setIsClosing]       = useState(false);
   const [isClosed, setIsClosed]         = useState(false);
+
+  useEffect(() => {
+    // Auto-fetch current week on mount to streamline UX
+    api.get('/api/payroll/current-week/')
+      .then(res => {
+        if (res.data.current_week) {
+          setCalcWeekNum(String(res.data.current_week));
+        }
+      })
+      .catch(err => console.error("Error auto-fetching week:", err));
+  }, []);
 
   // ── Actions ────────────────────────────────────────────────────────────────
 
@@ -227,7 +244,7 @@ const PayrollReport: React.FC = () => {
             disabled={isClosing || calcResults.length === 0 || isClosed || isCalculating}
             title={calcResults.length === 0 ? 'Ejecuta el reporte primero' : ''}
             style={{
-              padding: '0.45rem 1.25rem', borderRadius: '8px', border: 'none',
+              padding: '0.45rem 1.25rem', borderRadius: '8px',
               background: isClosed ? 'rgba(16,185,129,0.2)' : 'var(--accent-primary)',
               color: isClosed ? 'var(--color-emerald, #10b981)' : 'var(--color-white)',
               fontWeight: 600, fontSize: '0.875rem',
@@ -238,7 +255,13 @@ const PayrollReport: React.FC = () => {
               transition: 'all 0.2s ease', boxShadow: '0 2px 8px var(--accent-shadow)',
               border: isClosed ? '1px solid rgba(16,185,129,0.4)' : 'none',
             }}>
-            {isClosing ? 'Cerrando…' : isClosed ? '✓ Nómina Cerrada' : 'Cerrar Nómina'}
+            {isClosing ? (
+              <><CircleNotch className="animate-spin" size={16} /> Cerrando…</>
+            ) : isClosed ? (
+              <><CheckCircle weight="fill" size={16} /> Nómina Cerrada</>
+            ) : (
+              'Cerrar Nómina'
+            )}
           </button>
         </div>
       </div>
@@ -249,27 +272,32 @@ const PayrollReport: React.FC = () => {
           background: 'var(--error-bg)', border: '1px solid var(--error-border)',
           borderRadius: '8px', padding: '0.75rem 1rem',
           color: 'var(--error-text)', fontSize: '0.875rem', marginBottom: '1rem',
+          display: 'flex', alignItems: 'center', gap: '0.5rem'
         }}>
-          ⚠️ {calcError}
+          <WarningCircle size={18} weight="fill" />
+          {calcError}
         </div>
       )}
 
       {/* ── AG Grid ── */}
       {calcResults.length > 0 && (
-        <div className="eh-grid-wrapper">
-          <div className="ag-theme-alpine" style={{ height: '600px', width: '100%' }}>
-            <AgGridReact<CalcRow>
-              rowData={calcResults}
-              columnDefs={columnDefs}
-              pagination={true}
-              paginationPageSize={25}
-              animateRows={true}
-              rowHeight={56}
-              headerHeight={48}
-              defaultColDef={{ resizable: true }}
-            />
-          </div>
+      <div className="eh-grid-wrapper" style={{ padding: '1.5rem' }}>
+        <div className="ag-theme-alpine" style={{ width: '100%' }}>
+          <AgGridReact<CalcRow>
+            rowData={calcResults}
+            columnDefs={columnDefs}
+            pagination={false}
+            suppressPaginationPanel={true}
+            domLayout="autoHeight"
+            animateRows={true}
+            rowHeight={56}
+            headerHeight={48}
+            defaultColDef={{ resizable: true }}
+            rowStyle={{ borderBottom: '1px solid var(--bg-secondary)' }}
+            autoSizeStrategy={{ type: 'fitGridWidth' }}
+          />
         </div>
+      </div>
       )}
 
       {/* ── Empty state (after calculation returned nothing) ── */}
@@ -278,8 +306,9 @@ const PayrollReport: React.FC = () => {
           textAlign: 'center', padding: '4rem 2rem',
           background: 'var(--card-bg)', border: '1px solid var(--border-color)',
           borderRadius: '12px', color: 'var(--text-muted)',
+          display: 'flex', flexDirection: 'column', alignItems: 'center'
         }}>
-          <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🎉</div>
+          <CheckCircle size={48} weight="duotone" style={{ marginBottom: '1rem', color: 'var(--color-emerald)' }} />
           <p style={{ margin: 0, fontSize: '0.95rem' }}>
             Todos los empleados tuvieron una semana limpia en la Semana {calcWeekNum}.<br />
             No hay variaciones que mostrar.
@@ -293,8 +322,9 @@ const PayrollReport: React.FC = () => {
           textAlign: 'center', padding: '4rem 2rem',
           background: 'var(--card-bg)', border: '1px solid var(--border-color)',
           borderRadius: '12px', color: 'var(--text-muted)',
+          display: 'flex', flexDirection: 'column', alignItems: 'center'
         }}>
-          <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🧮</div>
+          <Calculator size={48} weight="duotone" style={{ marginBottom: '1rem', color: 'var(--accent-primary)' }} />
           <p style={{ margin: 0, fontSize: '0.95rem' }}>
             Ingresa el número de semana y presiona <strong>Calcular Nómina</strong> para ver las variaciones.
           </p>

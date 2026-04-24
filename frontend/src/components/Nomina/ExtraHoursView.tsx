@@ -3,6 +3,7 @@ import { AgGridReact } from 'ag-grid-react';
 import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
 import type { ColDef } from 'ag-grid-community';
 import api from '../../api/axios';
+import { ClockCounterClockwise, ArrowClockwise } from '@phosphor-icons/react';
 import '../modules.css';
 import '../Dashboard.css';
 import 'ag-grid-community/styles/ag-grid.css';
@@ -90,29 +91,24 @@ const ExtraHoursView: React.FC = () => {
     <div className="module-page">
       <div className="module-page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
-          <h1>⏱️ Banco de Horas Extra</h1>
+          <h1 style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
+            <ClockCounterClockwise size={32} weight="duotone" color="var(--accent-primary)" />
+            Banco de Horas Extra
+          </h1>
           <p>
             {loading
               ? 'Cargando…'
               : `${rows.length} registros · Total acumulado: ${totalHours.toFixed(2)} hrs`}
           </p>
         </div>
-        <div
-          id="btn-reload-extra-hours"
-          onClick={fetchData}
-          style={{
-            padding: '0.5rem 1rem',
-            background: 'var(--card-bg)',
-            border: '1px solid var(--border-color)',
-            borderRadius: '8px',
-            color: 'var(--text-muted)',
-            fontSize: '0.85rem',
-            fontWeight: 500,
-            cursor: 'pointer',
-          }}
-        >
-          🔄 Actualizar
-        </div>
+          <button
+            id="btn-reload-extra-hours"
+            onClick={fetchData}
+            className="ch-btn ch-btn-ghost"
+            style={{ fontSize: '0.85rem' }}
+          >
+            <ArrowClockwise weight="bold" /> Actualizar
+          </button>
       </div>
 
       {error && (
@@ -129,13 +125,14 @@ const ExtraHoursView: React.FC = () => {
         </div>
       )}
 
-      <div className="eh-grid-wrapper" style={{ height: '65vh' }}>
-        <div className="ag-theme-alpine" style={{ height: '100%', width: '100%' }}>
+      <div className="eh-grid-wrapper" style={{ padding: '1.5rem' }}>
+        <div className="ag-theme-alpine" style={{ width: '100%' }}>
           <AgGridReact
             rowData={rows}
             columnDefs={columnDefs}
-            pagination={true}
-            paginationPageSize={25}
+            pagination={false}
+            suppressPaginationPanel={true}
+            domLayout="autoHeight"
             animateRows={true}
             rowHeight={44}
             headerHeight={44}

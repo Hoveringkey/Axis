@@ -12,6 +12,8 @@ class Employee(models.Model):
     puesto = models.CharField(max_length=255)
     fecha_ingreso = models.DateField(null=True)
     is_active = models.BooleanField(default=True)
+    fecha_baja = models.DateField(null=True, blank=True)
+    motivo_baja = models.TextField(null=True, blank=True)
     horario_lv = models.ForeignKey(Schedule, on_delete=models.SET_NULL, null=True, related_name='employees_lv')
     horario_s = models.ForeignKey(Schedule, on_delete=models.SET_NULL, null=True, blank=True, related_name='employees_s')
     vacaciones_historicas_disfrutadas = models.IntegerField(default=0)
@@ -47,6 +49,12 @@ class Loan(models.Model):
     monto_total = models.DecimalField(max_digits=10, decimal_places=2)
     abono_semanal = models.DecimalField(max_digits=10, decimal_places=2)
     pagos_realizados = models.IntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+    status = models.CharField(max_length=20, default='PENDIENTE', choices=[
+        ('PENDIENTE', 'Pendiente'),
+        ('PAGADO', 'Pagado'),
+        ('CANCELADO', 'Cancelado')
+    ])
 
     def __str__(self):
         return f"Loan for {self.empleado.nombre}"

@@ -2,6 +2,15 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../../api/axios';
 import VacationStatus from './VacationStatus';
+import { 
+  IdentificationCard, 
+  Calendar, 
+  CircleNotch, 
+  FloppyDisk, 
+  ArrowsLeftRight, 
+  CheckCircle, 
+  CaretLeft
+} from '@phosphor-icons/react';
 import './CapitalHumano.css';
 
 type ActiveTab = 'datos' | 'vacaciones';
@@ -170,7 +179,7 @@ const EmployeeDetail: React.FC = () => {
       <div className="ch-page-header">
         <div>
           <button className="ch-back-btn" onClick={() => navigate('/capital-humano')}>
-            ← Directorio
+            <CaretLeft size={16} weight="bold" /> Directorio
           </button>
           <h1 style={{ marginTop: '0.625rem' }}>{employee.nombre}</h1>
           <p>No. Nómina: {employee.no_nomina} · {employee.puesto}</p>
@@ -188,14 +197,14 @@ const EmployeeDetail: React.FC = () => {
             className={`ch-tab${activeTab === 'datos' ? ' active' : ''}`}
             onClick={() => setActiveTab('datos')}
           >
-            📝 Datos
+            <IdentificationCard size={18} weight={activeTab === 'datos' ? 'fill' : 'regular'} /> Datos
           </button>
           <button
             id="tab-vacaciones"
             className={`ch-tab${activeTab === 'vacaciones' ? ' active' : ''}`}
             onClick={() => setActiveTab('vacaciones')}
           >
-            🌴 Vacaciones
+            <Calendar size={18} weight={activeTab === 'vacaciones' ? 'fill' : 'regular'} /> Vacaciones
           </button>
         </div>
 
@@ -281,7 +290,11 @@ const EmployeeDetail: React.FC = () => {
                     className="ch-btn ch-btn-primary"
                     disabled={isSaving}
                   >
-                    {isSaving ? '⏳ Guardando…' : '💾 Guardar Cambios'}
+                    {isSaving ? (
+                      <><CircleNotch className="animate-spin" size={18} /> Guardando…</>
+                    ) : (
+                      <><FloppyDisk weight="fill" size={18} /> Guardar Cambios</>
+                    )}
                   </button>
 
                   <button
@@ -290,7 +303,7 @@ const EmployeeDetail: React.FC = () => {
                     className="ch-btn ch-btn-swap"
                     onClick={() => setSwap(s => ({ ...s, open: true, status: null, targetNomina: '' }))}
                   >
-                    🔄 Intercambiar Turno
+                    <ArrowsLeftRight weight="bold" size={18} /> Intercambiar Turno
                   </button>
                 </div>
               </form>
@@ -308,7 +321,10 @@ const EmployeeDetail: React.FC = () => {
       {swap.open && (
         <div className="ch-modal-overlay" onClick={() => setSwap(s => ({ ...s, open: false }))}>
           <div className="ch-modal" onClick={e => e.stopPropagation()}>
-            <h3>🔄 Intercambiar Turno</h3>
+            <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <ArrowsLeftRight weight="duotone" size={24} color="var(--accent-primary)" />
+              Intercambiar Turno
+            </h3>
             <p>
               Selecciona el empleado con quien <strong>{employee.nombre}</strong> intercambiará
               sus horarios (L-V y Sábado).
@@ -343,7 +359,11 @@ const EmployeeDetail: React.FC = () => {
                 onClick={handleSwapSubmit}
                 disabled={!swap.targetNomina || swap.loading}
               >
-                {swap.loading ? '⏳ Procesando…' : '✅ Confirmar Intercambio'}
+                {swap.loading ? (
+                  <><CircleNotch className="animate-spin" size={18} /> Procesando…</>
+                ) : (
+                  <><CheckCircle weight="fill" size={18} /> Confirmar Intercambio</>
+                )}
               </button>
               <button
                 className="ch-btn ch-btn-ghost"

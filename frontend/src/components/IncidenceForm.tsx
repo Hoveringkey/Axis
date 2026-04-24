@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api/axios';
+import { CalendarPlus, CircleNotch, FloppyDisk, CaretDown, Check } from '@phosphor-icons/react';
 
 interface Employee {
   no_nomina: string;
@@ -41,6 +42,18 @@ const IncidenceForm: React.FC = () => {
 
   const [status, setStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const dropdownRef = React.useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   useEffect(() => {
     fetchEmployees();
@@ -213,22 +226,52 @@ const IncidenceForm: React.FC = () => {
           />
         </div>
 
-        {/* Incidence Type — placed before employee so "Aplicar a todos" appears logically */}
-        <div className="form-group">
+        {/* Incidence Type — custom premium dropdown */}
+        <div className="form-group" style={{ position: 'relative' }} ref={dropdownRef}>
           <label htmlFor="tipoIncidencia">Tipo de Incidencia</label>
-          <select
-            id="tipoIncidencia"
-            value={tipoIncidencia}
-            onChange={e => setTipoIncidencia(e.target.value)}
-            required
+          <div 
+            onClick={() => setDropdownOpen(!dropdownOpen)}
+            style={{
+              padding: '0.7rem 0.875rem', borderRadius: '8px', border: '1px solid var(--border-color)',
+              background: 'var(--bg-primary)', color: tipoIncidencia ? 'var(--text-main)' : 'var(--text-muted)',
+              fontSize: '0.9rem', cursor: 'pointer', display: 'flex', justifyContent: 'space-between',
+              alignItems: 'center', transition: 'all 0.2s ease',
+              boxShadow: dropdownOpen ? '0 0 0 3px rgba(79, 70, 229, 0.1)' : 'none',
+              borderColor: dropdownOpen ? 'var(--accent-primary)' : 'var(--border-color)'
+            }}
           >
-            <option value="" disabled>Seleccionar tipo…</option>
-            {catalogs.map(cat => (
-              <option key={cat.id} value={cat.id}>
-                {cat.tipo}
-              </option>
-            ))}
-          </select>
+            <span>{selectedCatalog ? selectedCatalog.tipo : 'Seleccionar tipo…'}</span>
+            <CaretDown size={14} style={{ transform: dropdownOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+          </div>
+          
+          {dropdownOpen && (
+            <div style={{
+              position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100,
+              background: 'var(--card-bg)', border: '1px solid var(--border-color)',
+              borderRadius: '10px', marginTop: '6px', boxShadow: 'var(--shadow-lg)',
+              overflow: 'hidden', animation: 'slideDown 0.2s ease'
+            }}>
+              {catalogs.map(cat => (
+                <div 
+                  key={cat.id}
+                  onClick={() => {
+                    setTipoIncidencia(String(cat.id));
+                    setDropdownOpen(false);
+                  }}
+                  style={{
+                    padding: '10px 14px', cursor: 'pointer', fontSize: '0.875rem',
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                    background: tipoIncidencia === String(cat.id) ? 'var(--accent-light)' : 'transparent',
+                    color: tipoIncidencia === String(cat.id) ? 'var(--accent-primary)' : 'var(--text-main)',
+                  }}
+                  className="premium-dropdown-item"
+                >
+                  {cat.tipo}
+                  {tipoIncidencia === String(cat.id) && <Check size={14} weight="bold" />}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* "Aplicar a todos" checkbox — only visible when Asueto is selected */}
@@ -296,11 +339,13 @@ const IncidenceForm: React.FC = () => {
         )}
 
         <button type="submit" className="submit-button" disabled={isLoading}>
-          {isLoading
-            ? 'Guardando…'
-            : aplicarATodos
-            ? '📅 Aplicar Asueto Masivo'
-            : 'Guardar Incidencia'}
+          {isLoading ? (
+            <><CircleNotch className="animate-spin" size={18} /> Guardando…</>
+          ) : aplicarATodos ? (
+            <><CalendarPlus size={18} weight="fill" /> Aplicar Asueto Masivo</>
+          ) : (
+            <><FloppyDisk size={18} weight="fill" /> Guardar Incidencia</>
+          )}
         </button>
       </form>
     </div>

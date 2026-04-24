@@ -85,7 +85,7 @@ const VacationStatus: React.FC<Props> = ({ noNomina, employeeName }) => {
           </span>
         </div>
         <div className="vac-meta-item">
-          <span className="vac-meta-label">Período LFT</span>
+          <span className="vac-meta-label">Período (Año {data.antigüedad_años + 1})</span>
           <span className="vac-meta-value">{data.periodo}</span>
         </div>
       </div>

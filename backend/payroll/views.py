@@ -11,11 +11,55 @@ from .serializers import (
     ExtraHourBankSerializer,
     PayrollSnapshotSerializer
 )
-from .services import calculate_payroll_for_week
+from .services import calculate_payroll_for_week, get_dashboard_metrics, get_current_payroll_week
+
+class DashboardMetricsView(views.APIView):
+    """Data engine endpoint for the S&OP/HR Dashboard."""
+    def get(self, request):
+        metrics = get_dashboard_metrics()
+        return Response(metrics, status=status.HTTP_200_OK)
+
+class CurrentWeekView(views.APIView):
+    """Utility endpoint to auto-fill the current ISO week."""
+    def get(self, request):
+        return Response({'current_week': get_current_payroll_week()}, status=status.HTTP_200_OK)
 
 class EmployeeViewSet(viewsets.ModelViewSet):
-    queryset = Employee.objects.select_related('horario_lv', 'horario_s').all()
     serializer_class = EmployeeSerializer
+
+    def get_queryset(self):
+        # Default to only active employees, allow override via query param if needed
+        qs = Employee.objects.select_related('horario_lv', 'horario_s').filter(is_active=True)
+        return qs
+
+    @action(detail=False, methods=['post'], url_path='alta')
+    def alta(self, request):
+        """Onboard a new employee."""
+        serializer = self.get_serializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save(is_active=True, vacaciones_historicas_disfrutadas=0)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['post', 'patch'], url_path='baja')
+    def baja(self, request, pk=None):
+        """Offboard an employee (Soft Delete)."""
+        try:
+            employee = self.get_object()
+            fecha_baja = request.data.get('fecha_baja')
+            motivo_baja = request.data.get('motivo_baja')
+            
+            if not fecha_baja:
+                return Response({'error': 'fecha_baja is required'}, status=status.HTTP_400_BAD_REQUEST)
+                
+            employee.is_active = False
+            employee.fecha_baja = fecha_baja
+            employee.motivo_baja = motivo_baja
+            employee.save()
+            
+            return Response({'status': 'success', 'no_nomina': employee.no_nomina})
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=False, methods=['post'], url_path='bulk-create')
     def bulk_create(self, request):

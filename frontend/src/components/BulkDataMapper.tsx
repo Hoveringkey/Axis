@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import type { ColDef } from 'ag-grid-community';
 import api from '../api/axios';
+import { CircleNotch, CheckCircle } from '@phosphor-icons/react';
 
 const BulkDataMapper: React.FC = () => {
   const [rawData, setRawData] = useState('');
@@ -101,7 +102,11 @@ const BulkDataMapper: React.FC = () => {
           onClick={handleImport}
           disabled={isSubmitting || parsedData.length === 0}
         >
-          {isSubmitting ? 'Importing...' : 'Confirm & Import'}
+          {isSubmitting ? (
+            <><CircleNotch className="animate-spin" size={18} /> Importing...</>
+          ) : (
+            <><CheckCircle weight="fill" size={18} /> Confirm & Import</>
+          )}
         </button>
       </div>
 

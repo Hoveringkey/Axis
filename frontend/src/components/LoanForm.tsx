@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api/axios';
+import { CreditCard, CircleNotch } from '@phosphor-icons/react';
 
 interface Employee {
   no_nomina: string;
@@ -70,7 +71,10 @@ const LoanForm: React.FC = () => {
   return (
     <div className="form-card">
       <div className="form-header">
-        <h3>Register Loan</h3>
+        <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <CreditCard size={20} weight="duotone" color="var(--accent-primary)" />
+          Register Loan
+        </h3>
         <p>Enter details for a new employee loan.</p>
       </div>
 
@@ -142,7 +146,11 @@ const LoanForm: React.FC = () => {
         </div>
 
         <button type="submit" className="submit-button" disabled={isLoading}>
-          {isLoading ? 'Registering...' : 'Register Loan'}
+          {isLoading ? (
+            <><CircleNotch className="animate-spin" size={18} /> Registering...</>
+          ) : (
+            <><CreditCard weight="fill" size={18} /> Register Loan</>
+          )}
         </button>
       </form>
     </div>

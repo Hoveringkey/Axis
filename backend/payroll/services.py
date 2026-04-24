@@ -6,7 +6,32 @@ from django.db.models import Sum, Q
 from django.db import transaction
 from .models import Employee, IncidenceRecord, Loan, ExtraHourBank, IncidenceCatalog, PayrollSnapshot
 
+def get_lft_days_for_year(year: int) -> int:
+    """
+    Helper logic to determine LFT vacation days based on seniority year.
+    Year 1: 12, 2: 14, 3: 16, 4: 18, 5: 20, 6-10: 22, 11-15: 24, 16-20: 26, etc.
+    """
+    if year <= 0:
+        return 0
+    if year <= 5:
+        return 10 + (year * 2)
+    # After 5 years, it increases by 2 days every 5 years
+    cycles = (year - 6) // 5 + 1
+    return 20 + (cycles * 2)
+
+def safe_replace_year(date_obj, year):
+    """Safely replace the year of a date, handling February 29 leap year cases."""
+    try:
+        return date_obj.replace(year=year)
+    except ValueError:
+        # Handle Feb 29 on non-leap years by falling back to Feb 28
+        return date_obj.replace(year=year, day=28)
+
 def calculate_vacation_balance(employee) -> dict:
+    """
+    Refactored vacation engine: 'Annualized Model with Debt Carryover'.
+    Strict Expiration for positive balances to comply with LFT 2023.
+    """
     if not employee.fecha_ingreso:
         return {
             "employee": employee.nombre,
@@ -18,52 +43,60 @@ def calculate_vacation_balance(employee) -> dict:
         }
 
     today = datetime.date.today()
+    ingreso = employee.fecha_ingreso
     
-    # Calculate exact years of service
-    antigüedad_años = today.year - employee.fecha_ingreso.year
-    if (today.month, today.day) < (employee.fecha_ingreso.month, employee.fecha_ingreso.day):
+    # 1. Date & Seniority
+    antigüedad_años = today.year - ingreso.year
+    if (today.month, today.day) < (ingreso.month, ingreso.day):
         antigüedad_años -= 1
-        
+    
     if antigüedad_años < 0:
         antigüedad_años = 0
 
-    # LFT 2023 Table logic for cumulative sum
-    def get_days_for_year(y):
-        if y <= 0: return 0
-        if y == 1: return 12
-        if y == 2: return 14
-        if y == 3: return 16
-        if y == 4: return 18
-        if y == 5: return 20
-        if 6 <= y <= 10: return 22
-        if 11 <= y <= 15: return 24
-        if 16 <= y <= 20: return 26
-        if 21 <= y <= 25: return 28
-        if 26 <= y <= 30: return 30
-        return 30
-
-    dias_con_derecho = sum(get_days_for_year(y) for y in range(1, antigüedad_años + 1))
-
-    # Determine current active period
-    last_anniversary_year = today.year if (today.month, today.day) >= (employee.fecha_ingreso.month, employee.fecha_ingreso.day) else today.year - 1
-    periodo_str = f"{last_anniversary_year} - {last_anniversary_year + 1}"
-
-    # Query IncidenceRecord for new vacations taken
-    new_vacations_taken = IncidenceRecord.objects.filter(
+    # Current Anniversary Window (period_start and period_end)
+    period_start = safe_replace_year(ingreso, ingreso.year + antigüedad_años)
+    period_end = safe_replace_year(ingreso, ingreso.year + antigüedad_años + 1)
+    
+    # 2. Historical LFT Calculation
+    # Calculate total_historico_ganado by summing LFT days for every completed year (1 to antigüedad_años)
+    total_historico_ganado = sum(get_lft_days_for_year(y) for y in range(1, antigüedad_años + 1))
+    
+    # 3. The 'Corte de Caja' (Snapshot & Rule)
+    balance_historico = total_historico_ganado - employee.vacaciones_historicas_disfrutadas
+    
+    # Apply Rule Option 1 (Strict Expiration): Debt carries over, positive balance expires.
+    deuda_arrastre = balance_historico if balance_historico < 0 else 0
+    
+    # 4. Current Year Rights
+    # Determine dias_lft_actual based on current year of service (antigüedad_años + 1)
+    dias_lft_actual = get_lft_days_for_year(antigüedad_años + 1)
+    # Exception: If antigüedad_años == 0, grant the first tier (12 days)
+    if antigüedad_años == 0:
+        dias_lft_actual = 12
+        
+    dias_con_derecho_neto = dias_lft_actual + deuda_arrastre
+    
+    # 5. Current Period Consumption
+    # Query IncidenceRecord for 'V' or 'VACACIONES' within the current anniversary window
+    vacaciones_tomadas_periodo = IncidenceRecord.objects.filter(
         empleado=employee,
-        tipo_incidencia__abreviatura__in=['V', 'VACACIONES']
+        tipo_incidencia__abreviatura__in=['V', 'VACACIONES'],
+        fecha__gte=period_start,
+        fecha__lt=period_end
     ).aggregate(total=Sum('cantidad'))['total'] or Decimal('0.00')
-
-    dias_disfrutados = float(employee.vacaciones_historicas_disfrutadas) + float(new_vacations_taken)
-    dias_restantes = float(dias_con_derecho) - dias_disfrutados
-
+    
+    vacaciones_tomadas_periodo = float(vacaciones_tomadas_periodo)
+    
+    # 6. Final Computation & Return Contract
+    dias_restantes = float(dias_con_derecho_neto) - vacaciones_tomadas_periodo
+    
     return {
         "employee": employee.nombre,
         "antigüedad_años": antigüedad_años,
-        "periodo": periodo_str,
-        "dias_con_derecho": dias_con_derecho,
-        "dias_disfrutados": dias_disfrutados,
-        "dias_restantes": max(0, dias_restantes)
+        "periodo": f"{period_start.strftime('%d/%b/%Y')} - {period_end.strftime('%d/%b/%Y')}",
+        "dias_con_derecho": float(dias_con_derecho_neto),
+        "dias_disfrutados": vacaciones_tomadas_periodo,
+        "dias_restantes": float(dias_restantes)
     }
 
 def is_monthly_bonus_week(target_year, target_week_num):
@@ -88,8 +121,6 @@ def calculate_payable_extra_hours(employee, target_week_num, target_year, week_i
         Decimal('0.00')
     )
 
-    # 3. Deferred Saturday HX is now passed in
-    
     # 4. Bank Balance
     bank_balance = bank_record.horas_deuda if bank_record else Decimal('0.00')
 
@@ -271,8 +302,6 @@ def calculate_payroll_for_week(week_num, dry_run=True):
                 loan_deduction = Decimal('0.00')
 
         # 6. Physical Incidences (Ausentismos) — date-injected format
-        # Collect dates per abbreviation (excluding HX / DA which are monetary/hour tokens)
-        # Result format: "F:2026-04-20|2026-04-22, V:2026-04-23|2026-04-24|2026-04-25"
         ausentismos_dates: dict[str, list[str]] = {}
         for inc in week_incidences:
             abrev = inc.tipo_incidencia.abreviatura
@@ -280,14 +309,12 @@ def calculate_payroll_for_week(week_num, dry_run=True):
                 date_str = inc.fecha.strftime('%Y-%m-%d')
                 if abrev not in ausentismos_dates:
                     ausentismos_dates[abrev] = []
-                # A single IncidenceRecord can span multiple days via cantidad;
-                # we record the record's own fecha once per record, regardless of cantidad.
                 if date_str not in ausentismos_dates[abrev]:
                     ausentismos_dates[abrev].append(date_str)
 
         ausentismos_parts = []
         for abrev, dates in ausentismos_dates.items():
-            dates.sort()  # chronological order
+            dates.sort()
             ausentismos_parts.append(f"{abrev}:{('|').join(dates)}")
         ausentismos_str = ", ".join(ausentismos_parts)
 
@@ -323,7 +350,7 @@ def calculate_payroll_for_week(week_num, dry_run=True):
             if banks_to_delete:
                 ExtraHourBank.objects.filter(id__in=[b.id for b in banks_to_delete]).delete()
 
-            # Build immutable audit snapshots for every employee with variations
+            # Build immutable audit snapshots
             snapshots = []
             for row in results:
                 bonos = row.get('bonos', {})

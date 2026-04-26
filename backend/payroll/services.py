@@ -359,6 +359,17 @@ def calculate_payroll_for_week(week_num, dry_run=True):
         )
         final_weekly_bonus = max(Decimal('0.00'), weekly_bonus - (weekly_bonus_deduction * Decimal(str(physical_absences))))
 
+        # Hard stop for Bono Nocturno based on full-absences
+        puesto_upper_bonus = employee.puesto.strip().upper() if employee.puesto else ''
+        workable_days_bonus = 5 if puesto_upper_bonus == 'C' else 6
+        full_absences = sum(
+            (inc.cantidad or Decimal('0.00') for inc in week_incidences
+            if inc.tipo_incidencia.abreviatura in ['F', 'S', 'PSG']),
+            Decimal('0.00')
+        )
+        if full_absences >= Decimal(str(workable_days_bonus)):
+            final_weekly_bonus = Decimal('0.00')
+
         # 2. Monthly Bonus
         monthly_bonus = Decimal('0.00')
         if is_monthly_bonus_week(target_year, week_num):

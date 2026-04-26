@@ -81,16 +81,6 @@ const buildColumnDefs = (): ColDef<CalcRow>[] => [
     autoHeight: true,
   },
 
-  // 4. Total a Pagar — blank header; count-gate runs inside TotalPillCellRenderer
-  {
-    headerName: '',
-    sortable: true,
-    width: 160,
-    type: 'numericColumn',
-    valueGetter: (p) => (p.data ? computeTotal(p.data) : 0),
-    cellRenderer: ({ value, data }: { value: number; data: CalcRow }) =>
-      data ? <TotalPillCellRenderer value={value} data={data} {...({} as any)} /> : null,
-  },
 ];
 
 const columnDefs = buildColumnDefs();
@@ -292,7 +282,12 @@ const PayrollReport: React.FC = () => {
             animateRows={true}
             rowHeight={56}
             headerHeight={48}
-            defaultColDef={{ resizable: true }}
+            defaultColDef={{ 
+              filter: true,
+              floatingFilter: false,
+              menuTabs: ['filterMenuTab'],
+              resizable: true 
+            }}
             rowStyle={{ borderBottom: '1px solid var(--bg-secondary)' }}
             autoSizeStrategy={{ type: 'fitGridWidth' }}
           />

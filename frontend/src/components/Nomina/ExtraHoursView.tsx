@@ -136,6 +136,12 @@ const ExtraHoursView: React.FC = () => {
             animateRows={true}
             rowHeight={52}
             headerHeight={52}
+            defaultColDef={{
+              filter: true,
+              floatingFilter: false,
+              menuTabs: ['filterMenuTab'],
+              resizable: true,
+            }}
             overlayLoadingTemplate={
               '<span style="color:var(--accent-primary);font-family:Inter,sans-serif;font-size:14px">Cargando banco de horas…</span>'
             }

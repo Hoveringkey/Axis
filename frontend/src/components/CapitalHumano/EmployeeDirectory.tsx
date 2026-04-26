@@ -262,6 +262,12 @@ const EmployeeDirectory: React.FC = () => {
             animateRows={true}
             rowHeight={52}
             headerHeight={52}
+            defaultColDef={{
+              filter: true,
+              floatingFilter: false,
+              menuTabs: ['filterMenuTab'],
+              resizable: true,
+            }}
             onGridReady={onGridReady}
             onRowClicked={(e) => {
               if (e.data?.no_nomina) {

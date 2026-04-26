@@ -7,7 +7,11 @@ interface Employee {
   nombre: string;
 }
 
-const LoanForm: React.FC = () => {
+interface LoanFormProps {
+  onLoanAdded?: () => void;
+}
+
+const LoanForm: React.FC<LoanFormProps> = ({ onLoanAdded }) => {
   const [employees, setEmployees] = useState<Employee[]>([]);
   
   const [empleado, setEmpleado] = useState('');
@@ -58,6 +62,9 @@ const LoanForm: React.FC = () => {
       setMontoTotal('');
       setAbonoSemanal('');
       setPagosRealizados('0');
+      if (onLoanAdded) {
+        onLoanAdded();
+      }
     } catch (err: any) {
       setStatus({ 
         type: 'error', 

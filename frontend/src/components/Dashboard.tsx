@@ -109,6 +109,12 @@ const Dashboard: React.FC = () => {
                 pagination={true}
                 paginationPageSize={20}
                 animateRows={true}
+                defaultColDef={{
+                  filter: true,
+                  floatingFilter: false,
+                  menuTabs: ['filterMenuTab'],
+                  resizable: true,
+                }}
               />
             </div>
           </div>

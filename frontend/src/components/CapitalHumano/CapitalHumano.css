@@ -401,6 +401,21 @@
   border-right: none !important;
 }
 
+/* Custom filter icon styling */
+.ag-theme-alpine .ag-header-cell .ag-header-icon {
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.ag-theme-alpine .ag-header-cell:hover .ag-header-icon,
+.ag-theme-alpine .ag-header-cell .ag-header-icon.ag-filter-active {
+  opacity: 0.6;
+}
+
+.ag-theme-alpine .ag-header-cell .ag-header-icon:hover {
+  opacity: 1;
+}
+
 /* Separation for the first row of data */
 .ag-theme-alpine .ag-row-first .ag-cell {
   padding-top: 12px;

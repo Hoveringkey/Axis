@@ -81,17 +81,6 @@ const buildColumnDefs = (): ColDef<PayrollSnapshot>[] => [
     autoHeight: true,
   },
 
-  // 4. Total a Pagar — blank header; count-gate runs inside renderer
-  {
-    headerName: '',
-    sortable: true,
-    width: 155,
-    type: 'numericColumn',
-    valueGetter: (p: ValueGetterParams<PayrollSnapshot>) =>
-      p.data ? computeSnapshotTotal(p.data) : 0,
-    cellRenderer: ({ value, data }: { value: number; data: PayrollSnapshot }) =>
-      data ? <TotalPillCellRenderer value={value} data={data.desglose} {...({} as any)} /> : null,
-  },
 ];
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -231,7 +220,12 @@ const HistoryView: React.FC = () => {
               animateRows={true}
               rowHeight={52}
               headerHeight={52}
-              defaultColDef={{ resizable: true }}
+              defaultColDef={{ 
+                filter: true,
+                floatingFilter: false,
+                menuTabs: ['filterMenuTab'],
+                resizable: true 
+              }}
               rowStyle={{ borderBottom: '1px solid var(--bg-secondary)' }}
               autoSizeStrategy={{ type: 'fitGridWidth' }}
             />

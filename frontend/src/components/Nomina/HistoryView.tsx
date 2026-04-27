@@ -4,11 +4,13 @@ import { AgGridReact } from 'ag-grid-react';
 import type { ColDef, ValueGetterParams } from 'ag-grid-community';
 import api from '../../api/axios';
 import '../modules.css';
+import QuickSearch from '../QuickSearch';
 
 import {
   hasVariations,
   IncidencesCellRenderer,
   NominaPillCellRenderer,
+  buildTokens,
 } from './GridRenderers';
 import type { DesgloseRow } from './GridRenderers';
 
@@ -50,6 +52,7 @@ const buildColumnDefs = (): ColDef<PayrollSnapshot>[] => [
     valueGetter: (p: ValueGetterParams<PayrollSnapshot>) =>
       p.data?.empleado_no_nomina || p.data?.desglose?.no_nomina || '',
     cellRenderer: NominaPillCellRenderer,
+    getQuickFilterText: (p) => p.value ? p.value.toString() : ''
   },
 
   // 2. Nombre
@@ -59,6 +62,7 @@ const buildColumnDefs = (): ColDef<PayrollSnapshot>[] => [
     sortable: true, filter: true,
     flex: 1.4, minWidth: 160,
     pinned: 'left',
+    getQuickFilterText: (p) => p.value ? p.value.toString() : ''
   },
 
   // 3. Resumen Operativo – token pills
@@ -71,6 +75,7 @@ const buildColumnDefs = (): ColDef<PayrollSnapshot>[] => [
     cellRenderer: ({ value }: { value: DesgloseRow | null }) =>
       value ? <IncidencesCellRenderer data={value} {...({} as any)} /> : null,
     autoHeight: true,
+    getQuickFilterText: (p) => p.data?.desglose ? buildTokens(p.data.desglose).map(t => t.label).join(' ') : ''
   },
 
 ];
@@ -85,6 +90,7 @@ const HistoryView: React.FC = () => {
   const [snapshots, setSnapshots]         = useState<PayrollSnapshot[]>([]);
   const [loading, setLoading]             = useState(false);
   const [error, setError]                 = useState<string | null>(null);
+  const [quickFilterText, setQuickFilterText] = useState('');
 
   const handleSearch = useCallback(async () => {
     const parsed = parseInt(semanaInput, 10);
@@ -153,6 +159,7 @@ const HistoryView: React.FC = () => {
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <QuickSearch value={quickFilterText} onChange={setQuickFilterText} />
           <label htmlFor="history-semana-input"
             style={{ fontSize: '0.85rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
             Semana No.
@@ -204,11 +211,13 @@ const HistoryView: React.FC = () => {
         <div className="eh-grid-wrapper" style={{ padding: '1.5rem' }}>
           <div className="ag-theme-alpine" style={{ width: '100%' }}>
             <AgGridReact<PayrollSnapshot>
+              theme="legacy"
               rowData={snapshots}
               columnDefs={columnDefs}
               pagination={false}
               suppressPaginationPanel={true}
               domLayout="autoHeight"
+              quickFilterText={quickFilterText}
               animateRows={true}
               rowHeight={52}
               headerHeight={52}

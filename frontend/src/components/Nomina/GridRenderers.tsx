@@ -414,9 +414,10 @@ export const NominaPillCellRenderer: React.FC<ICellRendererParams<DesgloseRow>> 
       style={{
         display:       'inline-flex',
         alignItems:    'center',
-        padding:       '0.2rem 0.75rem',
+        padding:       '2px 8px',
         borderRadius:  '999px',
-        fontSize:      '0.85rem',
+        fontSize:      '0.75rem',
+        lineHeight:    '1rem',
         fontWeight:    700,
         letterSpacing: '0.04em',
         fontVariantNumeric: 'tabular-nums',

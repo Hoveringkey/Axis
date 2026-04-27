@@ -104,6 +104,7 @@ const Dashboard: React.FC = () => {
 
             <div className="ag-theme-alpine-dark" style={{ height: '600px', width: '100%' }}>
               <AgGridReact
+                theme="legacy"
                 rowData={employees}
                 columnDefs={directoryColumnDefs}
                 pagination={true}

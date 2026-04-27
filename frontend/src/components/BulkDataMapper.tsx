@@ -122,6 +122,7 @@ const BulkDataMapper: React.FC = () => {
           <h3 className="mb-2">Data Preview ({parsedData.length} records)</h3>
           <div className="ag-theme-alpine-dark" style={{ height: '400px', width: '100%' }}>
             <AgGridReact
+              theme="legacy"
               rowData={parsedData}
               columnDefs={columnDefs}
               pagination={true}

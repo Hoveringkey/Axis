@@ -8,6 +8,7 @@ import api from '../../api/axios';
 import '../modules.css';
 import '../Dashboard.css'; // reuse form-card, data-form, etc.
 import '../CapitalHumano/CapitalHumano.css';
+import QuickSearch from '../QuickSearch';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -39,8 +40,9 @@ interface LoanDisplay {
 
 const LoansView: React.FC = () => {
   const [loans, setLoans] = useState<LoanDisplay[]>([]);
-  const [filter, setFilter] = useState<'Activos' | 'Inactivos/Pagados' | 'Todos'>('Activos');
+  const [filter, setFilter] = useState<'Activos' | 'Pagados' | 'Todos'>('Activos');
   const [, setLoading] = useState(false);
+  const [quickFilterText, setQuickFilterText] = useState('');
 
   const fetchLoans = useCallback(async () => {
     setLoading(true);
@@ -80,20 +82,23 @@ const LoansView: React.FC = () => {
 
   const filteredLoans = loans.filter(loan => {
     if (filter === 'Activos') return loan.is_active;
-    if (filter === 'Inactivos/Pagados') return !loan.is_active;
+    if (filter === 'Pagados') return !loan.is_active;
     return true; // Todos
   });
 
   const columnDefs: ColDef[] = [
-    { field: 'empleado_no_nomina', headerName: 'No. Nómina', sortable: true, filter: true, width: 140 },
-    { field: 'empleado_nombre', headerName: 'Nombre', sortable: true, filter: true, flex: 2 },
+    { field: 'empleado_no_nomina', headerName: 'No. Nómina', sortable: true, filter: true, width: 140, getQuickFilterText: p => p.value ? p.value.toString() : '' },
+    { field: 'empleado_nombre', headerName: 'Nombre', sortable: true, filter: true, flex: 2, getQuickFilterText: p => p.value ? p.value.toString() : '' },
     { 
       field: 'monto_total', 
       headerName: 'Monto Total', 
       sortable: true, 
       filter: true, 
       type: 'numericColumn',
-      valueFormatter: p => `$${p.value.toFixed(2)}`
+      headerClass: 'header-left-aligned',
+      cellStyle: { textAlign: 'left' },
+      valueFormatter: p => p.value != null ? `$${p.value.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '',
+      getQuickFilterText: p => p.value != null ? `${p.value} $${p.value.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : ''
     },
     { 
       field: 'abono_semanal', 
@@ -101,14 +106,28 @@ const LoansView: React.FC = () => {
       sortable: true, 
       filter: true, 
       type: 'numericColumn',
-      valueFormatter: p => `$${p.value.toFixed(2)}`
+      headerClass: 'header-left-aligned',
+      cellStyle: { textAlign: 'left' },
+      valueFormatter: p => p.value != null ? `$${p.value.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '',
+      getQuickFilterText: p => p.value != null ? `${p.value} $${p.value.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : ''
     },
-    { field: 'pagos_realizados', headerName: 'Pagos Realizados', sortable: true, filter: true, type: 'numericColumn' },
+    { 
+      field: 'pagos_realizados', 
+      headerName: 'Pagos Realizados', 
+      sortable: true, 
+      filter: true, 
+      type: 'numericColumn',
+      headerClass: 'header-left-aligned',
+      cellStyle: { textAlign: 'left' },
+      valueFormatter: p => p.value != null ? p.value.toLocaleString('es-MX') : '',
+      getQuickFilterText: p => p.value != null ? `${p.value} ${p.value.toLocaleString('es-MX')}` : ''
+    },
     { 
       field: 'status', 
       headerName: 'Estado', 
       sortable: true, 
       filter: true,
+      getQuickFilterText: p => p.value ? p.value.toString() : '',
       cellRenderer: (p: any) => (
         <span className={`badge ${p.data.is_active ? 'badge-active' : 'badge-inactive'}`}>
           {p.value}
@@ -135,7 +154,7 @@ const LoansView: React.FC = () => {
         <div className="ch-card ch-grid-wrapper" style={{ padding: '1.5rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
             <div style={{ display: 'flex', gap: '0.5rem', background: 'var(--bg-secondary)', padding: '0.25rem', borderRadius: '8px' }}>
-              {['Activos', 'Inactivos/Pagados', 'Todos'].map((opt) => (
+              {['Activos', 'Pagados', 'Todos'].map((opt) => (
                 <button
                   key={opt}
                   onClick={() => setFilter(opt as any)}
@@ -156,23 +175,27 @@ const LoansView: React.FC = () => {
                 </button>
               ))}
             </div>
-            <button
-              onClick={fetchLoans}
-              className="ch-btn ch-btn-ghost"
-              style={{ fontSize: '0.85rem' }}
-            >
-              <ArrowClockwise weight="bold" /> Actualizar
-            </button>
+            <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+              <QuickSearch value={quickFilterText} onChange={setQuickFilterText} />
+              <button
+                onClick={fetchLoans}
+                className="ch-btn ch-btn-ghost"
+                style={{ fontSize: '0.85rem' }}
+              >
+                <ArrowClockwise weight="bold" /> Actualizar
+              </button>
+            </div>
           </div>
 
           <div className="ag-theme-alpine" style={{ width: '100%' }}>
             <AgGridReact
+              theme="legacy"
               rowData={filteredLoans}
               columnDefs={columnDefs}
-              pagination={true}
-              paginationPageSize={10}
+              pagination={false}
               domLayout="autoHeight"
               animateRows={true}
+              quickFilterText={quickFilterText}
               rowHeight={52}
               headerHeight={52}
               defaultColDef={{

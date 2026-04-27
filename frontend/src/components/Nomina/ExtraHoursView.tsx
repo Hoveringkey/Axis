@@ -128,6 +128,7 @@ const ExtraHoursView: React.FC = () => {
       <div className="eh-grid-wrapper" style={{ padding: '1.5rem' }}>
         <div className="ag-theme-alpine" style={{ width: '100%' }}>
           <AgGridReact
+            theme="legacy"
             rowData={rows}
             columnDefs={columnDefs}
             pagination={false}

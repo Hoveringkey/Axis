@@ -17,12 +17,14 @@ import api from '../api/axios';
 import './modules.css';
 import 'ag-grid-community/styles/ag-grid.css';
 import 'ag-grid-community/styles/ag-theme-alpine.css';
+import QuickSearch from './QuickSearch';
 
 import {
   hasVariations,
   IncidencesCellRenderer,
   NominaPillCellRenderer,
   formatCurrency,
+  buildTokens,
 } from './Nomina/GridRenderers';
 import { 
   WarningCircle, 
@@ -59,6 +61,7 @@ const buildColumnDefs = (): ColDef<CalcRow>[] => [
     pinned: 'left',
     valueGetter: (p) => p.data?.no_nomina || (p.data as never as { empleado_no_nomina?: string })?.empleado_no_nomina || '',
     cellRenderer: NominaPillCellRenderer,
+    getQuickFilterText: (p) => p.value ? p.value.toString() : ''
   },
 
   // 2. Nombre
@@ -68,6 +71,7 @@ const buildColumnDefs = (): ColDef<CalcRow>[] => [
     sortable: true, filter: true,
     flex: 1.4, minWidth: 160,
     pinned: 'left',
+    getQuickFilterText: (p) => p.value ? p.value.toString() : ''
   },
 
   // 3. Resumen Operativo – token pills
@@ -78,6 +82,7 @@ const buildColumnDefs = (): ColDef<CalcRow>[] => [
     sortable: false,
     cellRenderer: IncidencesCellRenderer,
     autoHeight: true,
+    getQuickFilterText: (p) => p.data ? buildTokens(p.data).map(t => t.label).join(' ') : ''
   },
 
 ];
@@ -93,6 +98,7 @@ const PayrollReport: React.FC = () => {
   const [isCalculating, setIsCalculating] = useState(false);
   const [isClosing, setIsClosing]       = useState(false);
   const [isClosed, setIsClosed]         = useState(false);
+  const [quickFilterText, setQuickFilterText] = useState('');
 
   useEffect(() => {
     // Auto-fetch current week on mount to streamline UX
@@ -190,6 +196,7 @@ const PayrollReport: React.FC = () => {
 
         {/* Controls */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+          <QuickSearch value={quickFilterText} onChange={setQuickFilterText} />
           {/* Week input */}
           <label htmlFor="payroll-semana-input"
             style={{ fontSize: '0.85rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
@@ -273,11 +280,13 @@ const PayrollReport: React.FC = () => {
       <div className="eh-grid-wrapper" style={{ padding: '1.5rem' }}>
         <div className="ag-theme-alpine" style={{ width: '100%' }}>
           <AgGridReact<CalcRow>
+            theme="legacy"
             rowData={calcResults}
             columnDefs={columnDefs}
             pagination={false}
             suppressPaginationPanel={true}
             domLayout="autoHeight"
+            quickFilterText={quickFilterText}
             animateRows={true}
             rowHeight={56}
             headerHeight={48}

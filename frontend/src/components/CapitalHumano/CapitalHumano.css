@@ -466,3 +466,66 @@
 }
 
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* ---- AG GRID FILTER OVERHAUL ---- */
+/* Adjust the wrapper and mini filter input */
+.ag-theme-alpine .ag-filter-wrapper,
+.ag-theme-alpine .ag-filter {
+  border-radius: 8px;
+  box-shadow: var(--shadow-sm, 0 4px 12px rgba(0, 0, 0, 0.08));
+  background: var(--card-bg, #ffffff);
+}
+
+.ag-theme-alpine .ag-filter-wrapper .ag-input-field-input,
+.ag-theme-alpine .ag-filter .ag-input-field-input {
+  padding-left: 28px !important; /* adjust for magnifying glass */
+}
+
+.ag-theme-alpine .ag-filter-wrapper .ag-input-field-input::placeholder,
+.ag-theme-alpine .ag-filter .ag-input-field-input::placeholder {
+  color: rgba(0, 0, 0, 0.3) !important;
+}
+
+.ag-theme-alpine .ag-set-filter-list .ag-virtual-list-item,
+.ag-theme-alpine .ag-set-filter-list .ag-set-filter-item {
+  padding: 8px 12px;
+  transition: background-color 0.15s ease;
+  border-radius: 4px;
+}
+
+.ag-theme-alpine .ag-set-filter-list .ag-virtual-list-item:hover,
+.ag-theme-alpine .ag-set-filter-list .ag-set-filter-item:hover {
+  background-color: var(--bg-secondary);
+}
+
+/* Style inputs and dropdowns */
+.ag-theme-alpine .ag-filter-wrapper input,
+.ag-theme-alpine .ag-filter-wrapper select,
+.ag-theme-alpine .ag-filter input,
+.ag-theme-alpine .ag-filter select {
+  border: 1px solid var(--border-color) !important;
+  border-radius: 4px;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.ag-theme-alpine .ag-filter-wrapper input:focus,
+.ag-theme-alpine .ag-filter-wrapper select:focus,
+.ag-theme-alpine .ag-filter input:focus,
+.ag-theme-alpine .ag-filter select:focus {
+  border-color: var(--accent-primary) !important;
+  box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.1);
+}
+
+/* Header Alignment Helper */
+.header-left-aligned {
+  display: flex;
+  justify-content: flex-start !important;
+  align-items: center;
+  text-align: left !important;
+}
+
+.ag-theme-alpine .header-left-aligned .ag-header-cell-label {
+  justify-content: flex-start !important;
+  width: 100%;
+}

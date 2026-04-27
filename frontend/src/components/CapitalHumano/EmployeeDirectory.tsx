@@ -16,6 +16,7 @@ import { AgGridReact } from 'ag-grid-react';
 import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
 import type { ColDef, ICellRendererParams, GridReadyEvent } from 'ag-grid-community';
 import api from '../../api/axios';
+import QuickSearch from '../QuickSearch';
 import './CapitalHumano.css';
 
 import 'ag-grid-community/styles/ag-grid.css';
@@ -38,6 +39,7 @@ const EmployeeDirectory: React.FC = () => {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [quickFilterText, setQuickFilterText] = useState('');
 
   // Modal States
   const [isAltaModalOpen, setIsAltaModalOpen] = useState(false);
@@ -157,6 +159,7 @@ const EmployeeDirectory: React.FC = () => {
       filter: true,
       width: 130,
       pinned: 'left',
+      getQuickFilterText: p => p.value ? p.value.toString() : ''
     },
     {
       field: 'nombre',
@@ -164,6 +167,7 @@ const EmployeeDirectory: React.FC = () => {
       sortable: true,
       filter: true,
       flex: 2,
+      getQuickFilterText: p => p.value ? p.value.toString() : ''
     },
     {
       field: 'puesto',
@@ -171,6 +175,7 @@ const EmployeeDirectory: React.FC = () => {
       sortable: true,
       filter: true,
       flex: 1.5,
+      getQuickFilterText: p => p.value ? p.value.toString() : ''
     },
     {
       field: 'fecha_ingreso',
@@ -179,6 +184,7 @@ const EmployeeDirectory: React.FC = () => {
       filter: true,
       width: 140,
       valueFormatter: (p) => p.value ?? '—',
+      getQuickFilterText: p => p.value ? p.value.toString() : ''
     },
     {
       field: 'horario_lv',
@@ -187,6 +193,7 @@ const EmployeeDirectory: React.FC = () => {
       filter: true,
       flex: 1,
       valueFormatter: (p) => p.value ?? '—',
+      getQuickFilterText: p => p.value ? p.value.toString() : ''
     },
     {
       field: 'horario_s',
@@ -195,6 +202,7 @@ const EmployeeDirectory: React.FC = () => {
       filter: true,
       flex: 1,
       valueFormatter: (p) => p.value ?? '—',
+      getQuickFilterText: p => p.value ? p.value.toString() : ''
     },
     {
       field: 'is_active',
@@ -202,6 +210,7 @@ const EmployeeDirectory: React.FC = () => {
       sortable: true,
       filter: true,
       width: 110,
+      getQuickFilterText: p => p.value ? 'Activo' : 'Inactivo',
       cellRenderer: BadgeCellRenderer,
     },
   ];
@@ -226,6 +235,7 @@ const EmployeeDirectory: React.FC = () => {
           </p>
         </div>
         <div className="ch-actions">
+          <QuickSearch value={quickFilterText} onChange={setQuickFilterText} />
           <button
             className="ch-btn ch-btn-primary"
             onClick={() => setIsAltaModalOpen(true)}
@@ -254,11 +264,13 @@ const EmployeeDirectory: React.FC = () => {
       <div className="ch-card ch-grid-wrapper" style={{ padding: '1.5rem' }}>
         <div className="ag-theme-alpine" style={{ width: '100%' }}>
           <AgGridReact
+            theme="legacy"
             rowData={employees}
             columnDefs={columnDefs}
             pagination={false}
             suppressPaginationPanel={true}
             domLayout="autoHeight"
+            quickFilterText={quickFilterText}
             animateRows={true}
             rowHeight={52}
             headerHeight={52}

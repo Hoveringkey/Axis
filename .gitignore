@@ -18,6 +18,10 @@ pip-delete-this-directory.txt
 # Environment variables
 .env
 .env.local
+# Explicit project paths (belt-and-suspenders)
+backend/.env
+frontend/.env
+frontend/.env.local
 
 # Django stuff
 db.sqlite3

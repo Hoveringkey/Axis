@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import axios from 'axios';
+import api from '../api/axios';
 import './Login.css';
 
 const Login: React.FC = () => {
@@ -14,9 +14,7 @@ const Login: React.FC = () => {
     setIsLoading(true);
 
     try {
-      // Direct axios call (not using the interceptor instance) 
-      // because we don't have a token yet and we want to get one.
-      const response = await axios.post('http://localhost:8000/api/token/', {
+      const response = await api.post('/api/token/', {
         username,
         password,
       });

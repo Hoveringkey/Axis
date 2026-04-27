@@ -21,7 +21,6 @@ import 'ag-grid-community/styles/ag-theme-alpine.css';
 import {
   hasVariations,
   IncidencesCellRenderer,
-  TotalPillCellRenderer,
   NominaPillCellRenderer,
   formatCurrency,
 } from './Nomina/GridRenderers';

@@ -40,7 +40,7 @@ interface LoanDisplay {
 const LoansView: React.FC = () => {
   const [loans, setLoans] = useState<LoanDisplay[]>([]);
   const [filter, setFilter] = useState<'Activos' | 'Inactivos/Pagados' | 'Todos'>('Activos');
-  const [loading, setLoading] = useState(false);
+  const [, setLoading] = useState(false);
 
   const fetchLoans = useCallback(async () => {
     setLoading(true);

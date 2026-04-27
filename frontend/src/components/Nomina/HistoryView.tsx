@@ -8,10 +8,9 @@ import '../modules.css';
 import {
   hasVariations,
   IncidencesCellRenderer,
-  TotalPillCellRenderer,
   NominaPillCellRenderer,
 } from './GridRenderers';
-import type { DesgloseRow, Bonos } from './GridRenderers';
+import type { DesgloseRow } from './GridRenderers';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -41,13 +40,6 @@ const isNotClean = (snap: PayrollSnapshot): boolean =>
  * The "Resumen Operativo" column receives the normalised `desglose` object so
  * that IncidencesCellRenderer can work against a plain DesgloseRow.
  */
-/** Mirrors backend total_pagar: sum(bonos) + paid_extra_hours – loan_deduction */
-const computeSnapshotTotal = (snap: PayrollSnapshot): number => {
-  const d = snap.desglose;
-  const bonosSum = Object.values((d.bonos ?? {}) as Bonos).reduce((acc, v) => acc + Number(v), 0);
-  return bonosSum + Number(d.paid_extra_hours) - Number(d.loan_deduction);
-};
-
 const buildColumnDefs = (): ColDef<PayrollSnapshot>[] => [
   // 1. No. Nómina — pill renderer with safe fallback
   {

@@ -1,9 +1,37 @@
+import datetime
 from django.urls import reverse
+from django.test import SimpleTestCase
 from rest_framework import status
 from rest_framework.test import APITestCase
 from django.contrib.auth.models import User
 from rest_framework_simplejwt.tokens import RefreshToken
 from .models import Employee
+from .services import safe_replace_year
+
+class SafeReplaceYearTests(SimpleTestCase):
+    def test_leap_year_to_non_leap_year(self):
+        # Feb 29, 2024 (leap) to 2023 (non-leap)
+        leap_date = datetime.date(2024, 2, 29)
+        result = safe_replace_year(leap_date, 2023)
+        self.assertEqual(result, datetime.date(2023, 2, 28))
+
+    def test_leap_year_to_leap_year(self):
+        # Feb 29, 2024 (leap) to 2028 (leap)
+        leap_date = datetime.date(2024, 2, 29)
+        result = safe_replace_year(leap_date, 2028)
+        self.assertEqual(result, datetime.date(2028, 2, 29))
+
+    def test_normal_date_replacement(self):
+        # Jan 1, 2024 to 2023
+        normal_date = datetime.date(2024, 1, 1)
+        result = safe_replace_year(normal_date, 2023)
+        self.assertEqual(result, datetime.date(2023, 1, 1))
+
+    def test_non_leap_feb_28_to_leap_year(self):
+        # Feb 28, 2023 (non-leap) to 2024 (leap)
+        date_obj = datetime.date(2023, 2, 28)
+        result = safe_replace_year(date_obj, 2024)
+        self.assertEqual(result, datetime.date(2024, 2, 28))
 
 class EmployeeBulkCreateTests(APITestCase):
     def setUp(self):

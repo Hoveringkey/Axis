@@ -284,28 +284,40 @@ def calculate_payable_extra_hours(employee, target_week_num, target_year, week_i
         'mutation': mutation
     }
 
-def calculate_payroll_for_week(week_num, dry_run=True):
+def calculate_payroll_for_week(week_num, dry_run=True, target_year=None):
     # Determine the correct target_year to handle year boundaries
-    today_iso = datetime.date.today().isocalendar()
-    current_year = today_iso[0]
-    current_week = today_iso[1]
-    
-    if week_num > 50 and current_week < 10:
-        target_year = current_year - 1
-    elif week_num < 10 and current_week > 50:
-        target_year = current_year + 1
-    else:
-        target_year = current_year
+    if target_year is None:
+        today_iso = datetime.date.today().isocalendar()
+        current_year = today_iso[0]
+        current_week = today_iso[1]
+
+        if week_num > 50 and current_week < 10:
+            target_year = current_year - 1
+        elif week_num < 10 and current_week > 50:
+            target_year = current_year + 1
+        else:
+            target_year = current_year
 
     target_monday = datetime.date.fromisocalendar(target_year, week_num, 1)
     previous_saturday = target_monday - timedelta(days=2)
     lookback_monday = target_monday - timedelta(weeks=4)
 
     # Trip 1: Employees
-    employees = Employee.objects.select_related('horario_lv', 'horario_s').all()
+    employees = Employee.objects.select_related('horario_lv', 'horario_s').filter(is_active=True)
     
     # Trip 2 & 3: Loans & Banks
-    loans_dict = {loan.empleado_id: loan for loan in Loan.objects.all()}
+    loans_dict = {}
+    duplicate_active_loan_employee_ids = set()
+    for loan in Loan.objects.filter(is_active=True).order_by('empleado_id', 'id'):
+        if loan.empleado_id in loans_dict:
+            duplicate_active_loan_employee_ids.add(loan.empleado_id)
+        else:
+            loans_dict[loan.empleado_id] = loan
+
+    if duplicate_active_loan_employee_ids:
+        duplicate_ids = ', '.join(str(emp_id) for emp_id in sorted(duplicate_active_loan_employee_ids))
+        raise ValueError(f"Multiple active loans found for employee(s): {duplicate_ids}")
+
     banks_dict = {bank.empleado_id: bank for bank in ExtraHourBank.objects.all()}
     
     # Trip 4: IncidenceCatalog cache

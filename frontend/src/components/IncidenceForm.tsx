@@ -14,6 +14,10 @@ interface IncidenceCatalog {
   abreviatura: string;
 }
 
+interface IncidenceFormProps {
+  onIncidenceAdded?: () => void | Promise<void>;
+}
+
 const getISOWeekNumber = (dateString: string) => {
   const [y, m, d] = dateString.split('-').map(Number);
   const date = new Date(y, m - 1, d);
@@ -30,7 +34,7 @@ const getTodayDateString = () => {
   return `${year}-${month}-${day}`;
 };
 
-const IncidenceForm: React.FC = () => {
+const IncidenceForm: React.FC<IncidenceFormProps> = ({ onIncidenceAdded }) => {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [catalogs, setCatalogs] = useState<IncidenceCatalog[]>([]);
 
@@ -104,6 +108,7 @@ const IncidenceForm: React.FC = () => {
         setFecha(getTodayDateString());
         setTipoIncidencia('');
         setAplicarATodos(false);
+        await onIncidenceAdded?.();
         return;
       }
 
@@ -182,6 +187,7 @@ const IncidenceForm: React.FC = () => {
       setEmpleado('');
       setTipoIncidencia('');
       setCantidad('');
+      await onIncidenceAdded?.();
     } catch (err: any) {
       let errorMessage = 'Error al registrar incidencia. Verifique los datos.';
       if (err.response?.data) {

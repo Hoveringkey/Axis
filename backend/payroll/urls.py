@@ -9,6 +9,8 @@ from .views import (
     PayrollSnapshotViewSet,
     CalculatePayrollView,
     ClosePayrollView,
+    PayrollCommitView,
+    PayrollPreviewView,
     DashboardMetricsView,
     CurrentWeekView
 )
@@ -23,6 +25,8 @@ router.register(r'snapshots', PayrollSnapshotViewSet, basename='payrollsnapshot'
 
 urlpatterns = [
     path('', include(router.urls)),
+    path('preview/', PayrollPreviewView.as_view(), name='payroll_preview'),
+    path('commit/', PayrollCommitView.as_view(), name='payroll_commit'),
     path('calculate/', CalculatePayrollView.as_view(), name='calculate_payroll'),
     path('close/', ClosePayrollView.as_view(), name='close_payroll'),
     path('dashboard/', DashboardMetricsView.as_view(), name='dashboard_metrics'),

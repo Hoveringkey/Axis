@@ -44,7 +44,7 @@ const IncidencesView: React.FC = () => {
   const [incidences, setIncidences] = useState<IncidenceDisplay[]>([]);
   const [currentWeek, setCurrentWeek] = useState<number>(1);
   const [selectedWeek, setSelectedWeek] = useState<number>(1);
-  const [loading, setLoading] = useState(false);
+  const [, setLoading] = useState(false);
   const [quickFilterText, setQuickFilterText] = useState('');
 
   const fetchCurrentWeek = async () => {

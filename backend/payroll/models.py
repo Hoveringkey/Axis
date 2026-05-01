@@ -59,6 +59,15 @@ class Loan(models.Model):
     def __str__(self):
         return f"Loan for {self.empleado.nombre}"
 
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['empleado'],
+                condition=models.Q(is_active=True),
+                name='unique_active_loan_per_employee',
+            ),
+        ]
+
 class ExtraHourBank(models.Model):
     empleado = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name='extra_hours')
     horas_deuda = models.DecimalField(max_digits=5, decimal_places=2)

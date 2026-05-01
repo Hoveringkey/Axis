@@ -1,8 +1,10 @@
 from django.db import transaction
 from rest_framework import viewsets, views, status
 from rest_framework.decorators import action
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from .models import Employee, IncidenceCatalog, IncidenceRecord, Loan, ExtraHourBank, PayrollSnapshot
+from .permissions import IsFinanceAdmin, IsPayrollOperator
 from .serializers import (
     EmployeeSerializer,
     IncidenceCatalogSerializer,
@@ -13,19 +15,55 @@ from .serializers import (
 )
 from .services import calculate_payroll_for_week, get_dashboard_metrics, get_current_payroll_week
 
+
+def _parse_week_number(raw_week_num):
+    if raw_week_num in (None, ''):
+        return None, {'error': 'semana_num is required'}
+
+    try:
+        week_num = int(raw_week_num)
+    except (TypeError, ValueError):
+        return None, {'error': 'semana_num must be an integer'}
+
+    if week_num < 1 or week_num > 53:
+        return None, {'error': 'semana_num must be between 1 and 53'}
+
+    return week_num, None
+
+
+def _parse_optional_year(raw_year):
+    if raw_year in (None, ''):
+        return None, None
+
+    try:
+        target_year = int(raw_year)
+    except (TypeError, ValueError):
+        return None, {'error': 'year must be an integer'}
+
+    if target_year < 1 or target_year > 9999:
+        return None, {'error': 'year must be between 1 and 9999'}
+
+    return target_year, None
+
+
 class DashboardMetricsView(views.APIView):
     """Data engine endpoint for the S&OP/HR Dashboard."""
+    permission_classes = [IsAuthenticated, IsPayrollOperator]
+
     def get(self, request):
         metrics = get_dashboard_metrics()
         return Response(metrics, status=status.HTTP_200_OK)
 
 class CurrentWeekView(views.APIView):
     """Utility endpoint to auto-fill the current ISO week."""
+    permission_classes = [IsAuthenticated, IsPayrollOperator]
+
     def get(self, request):
         return Response({'current_week': get_current_payroll_week()}, status=status.HTTP_200_OK)
 
 class EmployeeViewSet(viewsets.ModelViewSet):
     serializer_class = EmployeeSerializer
+    permission_classes = [IsAuthenticated, IsPayrollOperator]
 
     def get_queryset(self):
         # Default to only active employees, allow override via query param if needed
@@ -115,10 +153,12 @@ class EmployeeViewSet(viewsets.ModelViewSet):
 class IncidenceCatalogViewSet(viewsets.ModelViewSet):
     queryset = IncidenceCatalog.objects.all()
     serializer_class = IncidenceCatalogSerializer
+    permission_classes = [IsAuthenticated, IsPayrollOperator]
 
 class IncidenceRecordViewSet(viewsets.ModelViewSet):
     queryset = IncidenceRecord.objects.all()
     serializer_class = IncidenceRecordSerializer
+    permission_classes = [IsAuthenticated, IsPayrollOperator]
 
     @action(detail=False, methods=['post'], url_path='bulk_asueto')
     def bulk_asueto(self, request):
@@ -170,14 +210,17 @@ class IncidenceRecordViewSet(viewsets.ModelViewSet):
 class LoanViewSet(viewsets.ModelViewSet):
     queryset = Loan.objects.all()
     serializer_class = LoanSerializer
+    permission_classes = [IsAuthenticated, IsPayrollOperator]
 
 class ExtraHourBankViewSet(viewsets.ModelViewSet):
     queryset = ExtraHourBank.objects.all()
     serializer_class = ExtraHourBankSerializer
+    permission_classes = [IsAuthenticated, IsPayrollOperator]
 
 class PayrollSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
     """Read-only audit log of permanently closed payroll weeks."""
     serializer_class = PayrollSnapshotSerializer
+    permission_classes = [IsAuthenticated, IsPayrollOperator]
 
     def get_queryset(self):
         qs = PayrollSnapshot.objects.all()
@@ -190,31 +233,57 @@ class PayrollSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
         return qs
 
 class CalculatePayrollView(views.APIView):
+    permission_classes = [IsAuthenticated, IsPayrollOperator]
+
+    # Deprecated legacy endpoint. Use PayrollPreviewView at /api/payroll/preview/.
     def post(self, request):
-        week_num = request.data.get('semana_num')
-        if not week_num:
-            return Response({'error': 'semana_num is required'}, status=status.HTTP_400_BAD_REQUEST)
-        
-        try:
-            week_num = int(week_num)
-        except ValueError:
-            return Response({'error': 'semana_num must be an integer'}, status=status.HTTP_400_BAD_REQUEST)
+        week_num, error = _parse_week_number(request.data.get('semana_num'))
+        if error:
+            return Response(error, status=status.HTTP_400_BAD_REQUEST)
 
         # Preview action, strict dry_run to prevent state mutation
         results = calculate_payroll_for_week(week_num, dry_run=True)
         return Response({'results': results}, status=status.HTTP_200_OK)
 
 class ClosePayrollView(views.APIView):
+    permission_classes = [IsAuthenticated, IsFinanceAdmin]
+
+    # Deprecated legacy endpoint. Use PayrollCommitView at /api/payroll/commit/.
     def post(self, request):
-        week_num = request.data.get('semana_num')
-        if not week_num:
-            return Response({'error': 'semana_num is required'}, status=status.HTTP_400_BAD_REQUEST)
-        
-        try:
-            week_num = int(week_num)
-        except ValueError:
-            return Response({'error': 'semana_num must be an integer'}, status=status.HTTP_400_BAD_REQUEST)
+        week_num, error = _parse_week_number(request.data.get('semana_num'))
+        if error:
+            return Response(error, status=status.HTTP_400_BAD_REQUEST)
 
         # Commit action, mutates ExtraHourBank and explicitly performs DB writes
-        results = calculate_payroll_for_week(week_num, dry_run=False)
+        with transaction.atomic():
+            results = calculate_payroll_for_week(week_num, dry_run=False)
+        return Response({'results': results}, status=status.HTTP_200_OK)
+
+
+class PayrollPreviewView(views.APIView):
+    permission_classes = [IsAuthenticated, IsPayrollOperator]
+
+    def get(self, request):
+        week_num, error = _parse_week_number(request.query_params.get('semana_num'))
+        if error:
+            return Response(error, status=status.HTTP_400_BAD_REQUEST)
+
+        target_year, error = _parse_optional_year(request.query_params.get('year'))
+        if error:
+            return Response(error, status=status.HTTP_400_BAD_REQUEST)
+
+        results = calculate_payroll_for_week(week_num, dry_run=True, target_year=target_year)
+        return Response({'results': results}, status=status.HTTP_200_OK)
+
+
+class PayrollCommitView(views.APIView):
+    permission_classes = [IsAuthenticated, IsFinanceAdmin]
+
+    def post(self, request):
+        week_num, error = _parse_week_number(request.data.get('semana_num'))
+        if error:
+            return Response(error, status=status.HTTP_400_BAD_REQUEST)
+
+        with transaction.atomic():
+            results = calculate_payroll_for_week(week_num, dry_run=False)
         return Response({'results': results}, status=status.HTTP_200_OK)

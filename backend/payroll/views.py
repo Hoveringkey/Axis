@@ -15,6 +15,32 @@ from .serializers import (
 )
 from .services import calculate_payroll_for_week, get_dashboard_metrics, get_current_payroll_week
 
+
+def _parse_week_number(raw_week_num):
+    if raw_week_num in (None, ''):
+        return None, {'error': 'semana_num is required'}
+
+    try:
+        week_num = int(raw_week_num)
+    except (TypeError, ValueError):
+        return None, {'error': 'semana_num must be an integer'}
+
+    if week_num < 1 or week_num > 53:
+        return None, {'error': 'semana_num must be between 1 and 53'}
+
+    return week_num, None
+
+
+def _parse_optional_year(raw_year):
+    if raw_year in (None, ''):
+        return None, None
+
+    try:
+        return int(raw_year), None
+    except (TypeError, ValueError):
+        return None, {'error': 'year must be an integer'}
+
+
 class DashboardMetricsView(views.APIView):
     """Data engine endpoint for the S&OP/HR Dashboard."""
     permission_classes = [IsAuthenticated, IsPayrollOperator]
@@ -204,15 +230,11 @@ class PayrollSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
 class CalculatePayrollView(views.APIView):
     permission_classes = [IsAuthenticated, IsPayrollOperator]
 
+    # Deprecated legacy endpoint. Use PayrollPreviewView at /api/payroll/preview/.
     def post(self, request):
-        week_num = request.data.get('semana_num')
-        if not week_num:
-            return Response({'error': 'semana_num is required'}, status=status.HTTP_400_BAD_REQUEST)
-        
-        try:
-            week_num = int(week_num)
-        except ValueError:
-            return Response({'error': 'semana_num must be an integer'}, status=status.HTTP_400_BAD_REQUEST)
+        week_num, error = _parse_week_number(request.data.get('semana_num'))
+        if error:
+            return Response(error, status=status.HTTP_400_BAD_REQUEST)
 
         # Preview action, strict dry_run to prevent state mutation
         results = calculate_payroll_for_week(week_num, dry_run=True)
@@ -221,16 +243,42 @@ class CalculatePayrollView(views.APIView):
 class ClosePayrollView(views.APIView):
     permission_classes = [IsAuthenticated, IsFinanceAdmin]
 
+    # Deprecated legacy endpoint. Use PayrollCommitView at /api/payroll/commit/.
     def post(self, request):
-        week_num = request.data.get('semana_num')
-        if not week_num:
-            return Response({'error': 'semana_num is required'}, status=status.HTTP_400_BAD_REQUEST)
-        
-        try:
-            week_num = int(week_num)
-        except ValueError:
-            return Response({'error': 'semana_num must be an integer'}, status=status.HTTP_400_BAD_REQUEST)
+        week_num, error = _parse_week_number(request.data.get('semana_num'))
+        if error:
+            return Response(error, status=status.HTTP_400_BAD_REQUEST)
 
         # Commit action, mutates ExtraHourBank and explicitly performs DB writes
-        results = calculate_payroll_for_week(week_num, dry_run=False)
+        with transaction.atomic():
+            results = calculate_payroll_for_week(week_num, dry_run=False)
+        return Response({'results': results}, status=status.HTTP_200_OK)
+
+
+class PayrollPreviewView(views.APIView):
+    permission_classes = [IsAuthenticated, IsPayrollOperator]
+
+    def get(self, request):
+        week_num, error = _parse_week_number(request.query_params.get('semana_num'))
+        if error:
+            return Response(error, status=status.HTTP_400_BAD_REQUEST)
+
+        target_year, error = _parse_optional_year(request.query_params.get('year'))
+        if error:
+            return Response(error, status=status.HTTP_400_BAD_REQUEST)
+
+        results = calculate_payroll_for_week(week_num, dry_run=True, target_year=target_year)
+        return Response({'results': results}, status=status.HTTP_200_OK)
+
+
+class PayrollCommitView(views.APIView):
+    permission_classes = [IsAuthenticated, IsFinanceAdmin]
+
+    def post(self, request):
+        week_num, error = _parse_week_number(request.data.get('semana_num'))
+        if error:
+            return Response(error, status=status.HTTP_400_BAD_REQUEST)
+
+        with transaction.atomic():
+            results = calculate_payroll_for_week(week_num, dry_run=False)
         return Response({'results': results}, status=status.HTTP_200_OK)

@@ -1,10 +1,11 @@
 import datetime
+from decimal import Decimal
 from django.test import SimpleTestCase
 from rest_framework import status
 from rest_framework.test import APITestCase
 from django.contrib.auth.models import Group, User
 from rest_framework_simplejwt.tokens import RefreshToken
-from .models import Employee, Schedule
+from .models import Employee, ExtraHourBank, Loan, PayrollSnapshot, Schedule
 from .permissions import FINANCE_ADMIN, HR_CAPTURE
 from .services import safe_replace_year
 
@@ -216,3 +217,106 @@ class PayrollPermissionTests(APITestCase):
         response = self.client.post(self.close_url, {'semana_num': 1}, format='json')
 
         self.assertNotEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
+class PayrollPreviewCommitTests(APITestCase):
+    preview_url = '/api/payroll/preview/'
+    commit_url = '/api/payroll/commit/'
+
+    def setUp(self):
+        self.hr_group = Group.objects.get_or_create(name=HR_CAPTURE)[0]
+        self.finance_group = Group.objects.get_or_create(name=FINANCE_ADMIN)[0]
+        self.schedule = Schedule.objects.create(time_range="08:00-18:00")
+        self.employee = Employee.objects.create(
+            no_nomina="EMP-PAY-001",
+            nombre="Preview User",
+            puesto="Operador",
+            fecha_ingreso=datetime.date(2024, 1, 1),
+            horario_lv=self.schedule,
+        )
+        self.loan = Loan.objects.create(
+            empleado=self.employee,
+            monto_total=Decimal('100.00'),
+            abono_semanal=Decimal('25.00'),
+            pagos_realizados=0,
+        )
+        self.bank = ExtraHourBank.objects.create(
+            empleado=self.employee,
+            horas_deuda=Decimal('10.00'),
+        )
+
+    def authenticate_with_group(self, group):
+        user = User.objects.create_user(username=f'user_{group.name}', password='testpassword')
+        user.groups.add(group)
+        self.client.force_authenticate(user=user)
+        return user
+
+    def test_hr_capture_can_preview(self):
+        self.authenticate_with_group(self.hr_group)
+
+        response = self.client.get(self.preview_url, {'semana_num': 10, 'year': 2026})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_hr_capture_cannot_commit(self):
+        self.authenticate_with_group(self.hr_group)
+
+        response = self.client.post(self.commit_url, {'semana_num': 10}, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_finance_admin_can_preview(self):
+        self.authenticate_with_group(self.finance_group)
+
+        response = self.client.get(self.preview_url, {'semana_num': 10, 'year': 2026})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_finance_admin_commit_does_not_fail_by_permission(self):
+        self.authenticate_with_group(self.finance_group)
+
+        response = self.client.post(self.commit_url, {'semana_num': 10}, format='json')
+
+        self.assertNotEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_preview_does_not_create_payroll_snapshot(self):
+        self.authenticate_with_group(self.hr_group)
+
+        response = self.client.get(self.preview_url, {'semana_num': 10, 'year': 2026})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(PayrollSnapshot.objects.count(), 0)
+
+    def test_preview_does_not_modify_loans(self):
+        self.authenticate_with_group(self.hr_group)
+
+        response = self.client.get(self.preview_url, {'semana_num': 10, 'year': 2026})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.loan.refresh_from_db()
+        self.assertEqual(self.loan.pagos_realizados, 0)
+        self.assertTrue(self.loan.is_active)
+        self.assertEqual(self.loan.status, 'PENDIENTE')
+
+    def test_preview_does_not_modify_extra_hour_bank(self):
+        self.authenticate_with_group(self.hr_group)
+
+        response = self.client.get(self.preview_url, {'semana_num': 10, 'year': 2026})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.bank.refresh_from_db()
+        self.assertEqual(self.bank.horas_deuda, Decimal('10.00'))
+
+    def test_preview_missing_semana_num_returns_400(self):
+        self.authenticate_with_group(self.hr_group)
+
+        response = self.client.get(self.preview_url)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_preview_invalid_semana_num_returns_400(self):
+        self.authenticate_with_group(self.hr_group)
+
+        response = self.client.get(self.preview_url, {'semana_num': 54})
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)

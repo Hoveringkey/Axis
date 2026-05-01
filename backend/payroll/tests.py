@@ -320,3 +320,24 @@ class PayrollPreviewCommitTests(APITestCase):
         response = self.client.get(self.preview_url, {'semana_num': 54})
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_preview_year_zero_returns_400(self):
+        self.authenticate_with_group(self.hr_group)
+
+        response = self.client.get(self.preview_url, {'semana_num': 10, 'year': 0})
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_preview_year_above_datetime_range_returns_400(self):
+        self.authenticate_with_group(self.hr_group)
+
+        response = self.client.get(self.preview_url, {'semana_num': 10, 'year': 10000})
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_preview_non_integer_year_returns_400(self):
+        self.authenticate_with_group(self.hr_group)
+
+        response = self.client.get(self.preview_url, {'semana_num': 10, 'year': 'abc'})
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)

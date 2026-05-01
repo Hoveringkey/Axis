@@ -36,9 +36,14 @@ def _parse_optional_year(raw_year):
         return None, None
 
     try:
-        return int(raw_year), None
+        target_year = int(raw_year)
     except (TypeError, ValueError):
         return None, {'error': 'year must be an integer'}
+
+    if target_year < 1 or target_year > 9999:
+        return None, {'error': 'year must be between 1 and 9999'}
+
+    return target_year, None
 
 
 class DashboardMetricsView(views.APIView):

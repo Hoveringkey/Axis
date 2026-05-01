@@ -119,15 +119,15 @@ const PayrollReport: React.FC = () => {
     setCalcError(null);
     setIsClosed(false);
     try {
-      const response = await api.post('/api/payroll/calculate/', {
-        semana_num: parseInt(calcWeekNum, 10),
+      const response = await api.get('/api/payroll/preview/', {
+        params: { semana_num: parseInt(calcWeekNum, 10) },
       });
       const raw: CalcRow[] = response.data.results ?? response.data ?? [];
       // ── MBE filter: defensive client-side guard (backend already filters) ──
       setCalcResults(raw.filter(hasVariations));
     } catch (err: unknown) {
       const e = err as { response?: { data?: { detail?: string } } };
-      setCalcError(e.response?.data?.detail ?? 'Error al calcular la nómina.');
+      setCalcError(e.response?.data?.detail ?? 'No se pudo calcular la nómina. Intenta de nuevo.');
     } finally {
       setIsCalculating(false);
     }
@@ -138,13 +138,17 @@ const PayrollReport: React.FC = () => {
     setIsClosing(true);
     setCalcError(null);
     try {
-      await api.post('/api/payroll/close/', {
+      await api.post('/api/payroll/commit/', {
         semana_num: parseInt(calcWeekNum, 10),
       });
       setIsClosed(true);
     } catch (err: unknown) {
-      const e = err as { response?: { data?: { detail?: string } } };
-      setCalcError(e.response?.data?.detail ?? 'Error al cerrar la nómina.');
+      const e = err as { response?: { status?: number; data?: { detail?: string } } };
+      if (e.response?.status === 403) {
+        setCalcError('No tienes permiso para cerrar la nómina.');
+      } else {
+        setCalcError(e.response?.data?.detail ?? 'No se pudo cerrar la nómina. Intenta de nuevo.');
+      }
     } finally {
       setIsClosing(false);
     }

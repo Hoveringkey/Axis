@@ -1,8 +1,10 @@
 from django.db import transaction
 from rest_framework import viewsets, views, status
 from rest_framework.decorators import action
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from .models import Employee, IncidenceCatalog, IncidenceRecord, Loan, ExtraHourBank, PayrollSnapshot
+from .permissions import IsFinanceAdmin, IsPayrollOperator
 from .serializers import (
     EmployeeSerializer,
     IncidenceCatalogSerializer,
@@ -15,17 +17,22 @@ from .services import calculate_payroll_for_week, get_dashboard_metrics, get_cur
 
 class DashboardMetricsView(views.APIView):
     """Data engine endpoint for the S&OP/HR Dashboard."""
+    permission_classes = [IsAuthenticated, IsPayrollOperator]
+
     def get(self, request):
         metrics = get_dashboard_metrics()
         return Response(metrics, status=status.HTTP_200_OK)
 
 class CurrentWeekView(views.APIView):
     """Utility endpoint to auto-fill the current ISO week."""
+    permission_classes = [IsAuthenticated, IsPayrollOperator]
+
     def get(self, request):
         return Response({'current_week': get_current_payroll_week()}, status=status.HTTP_200_OK)
 
 class EmployeeViewSet(viewsets.ModelViewSet):
     serializer_class = EmployeeSerializer
+    permission_classes = [IsAuthenticated, IsPayrollOperator]
 
     def get_queryset(self):
         # Default to only active employees, allow override via query param if needed
@@ -115,10 +122,12 @@ class EmployeeViewSet(viewsets.ModelViewSet):
 class IncidenceCatalogViewSet(viewsets.ModelViewSet):
     queryset = IncidenceCatalog.objects.all()
     serializer_class = IncidenceCatalogSerializer
+    permission_classes = [IsAuthenticated, IsPayrollOperator]
 
 class IncidenceRecordViewSet(viewsets.ModelViewSet):
     queryset = IncidenceRecord.objects.all()
     serializer_class = IncidenceRecordSerializer
+    permission_classes = [IsAuthenticated, IsPayrollOperator]
 
     @action(detail=False, methods=['post'], url_path='bulk_asueto')
     def bulk_asueto(self, request):
@@ -170,14 +179,17 @@ class IncidenceRecordViewSet(viewsets.ModelViewSet):
 class LoanViewSet(viewsets.ModelViewSet):
     queryset = Loan.objects.all()
     serializer_class = LoanSerializer
+    permission_classes = [IsAuthenticated, IsPayrollOperator]
 
 class ExtraHourBankViewSet(viewsets.ModelViewSet):
     queryset = ExtraHourBank.objects.all()
     serializer_class = ExtraHourBankSerializer
+    permission_classes = [IsAuthenticated, IsPayrollOperator]
 
 class PayrollSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
     """Read-only audit log of permanently closed payroll weeks."""
     serializer_class = PayrollSnapshotSerializer
+    permission_classes = [IsAuthenticated, IsPayrollOperator]
 
     def get_queryset(self):
         qs = PayrollSnapshot.objects.all()
@@ -190,6 +202,8 @@ class PayrollSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
         return qs
 
 class CalculatePayrollView(views.APIView):
+    permission_classes = [IsAuthenticated, IsPayrollOperator]
+
     def post(self, request):
         week_num = request.data.get('semana_num')
         if not week_num:
@@ -205,6 +219,8 @@ class CalculatePayrollView(views.APIView):
         return Response({'results': results}, status=status.HTTP_200_OK)
 
 class ClosePayrollView(views.APIView):
+    permission_classes = [IsAuthenticated, IsFinanceAdmin]
+
     def post(self, request):
         week_num = request.data.get('semana_num')
         if not week_num:

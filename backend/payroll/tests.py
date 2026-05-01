@@ -1,11 +1,11 @@
 import datetime
-from django.urls import reverse
 from django.test import SimpleTestCase
 from rest_framework import status
 from rest_framework.test import APITestCase
-from django.contrib.auth.models import User
+from django.contrib.auth.models import Group, User
 from rest_framework_simplejwt.tokens import RefreshToken
-from .models import Employee
+from .models import Employee, Schedule
+from .permissions import FINANCE_ADMIN, HR_CAPTURE
 from .services import safe_replace_year
 
 class SafeReplaceYearTests(SimpleTestCase):
@@ -37,9 +37,12 @@ class EmployeeBulkCreateTests(APITestCase):
     def setUp(self):
         # Create user and authenticate with JWT token
         self.user = User.objects.create_user(username='testadmin', password='testpassword')
+        self.user.groups.add(Group.objects.get_or_create(name=HR_CAPTURE)[0])
         refresh = RefreshToken.for_user(self.user)
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {refresh.access_token}')
-        self.url = reverse('employee-bulk-create')
+        self.url = '/api/payroll/employees/bulk-create/'
+        self.weekday_schedule = Schedule.objects.create(time_range="08:00-18:00")
+        self.saturday_schedule = Schedule.objects.create(time_range="08:00-13:00")
 
         # Valid payloads for testing
         self.valid_employee_1 = {
@@ -61,7 +64,7 @@ class EmployeeBulkCreateTests(APITestCase):
             "nombre": "Carlos Sanchez",
             "puesto": "Mantenimiento",
             "horario_lv": "08:00-18:00",
-            "horario_s": "" # empty string test
+            "horario_s": "08:00-13:00"
         }
         self.valid_employee_4 = {
             "no_nomina": "EMP-004",
@@ -72,7 +75,7 @@ class EmployeeBulkCreateTests(APITestCase):
         }
 
     def test_setup_works(self):
-        self.assertEqual(self.url, reverse('employee-bulk-create'))
+        self.assertEqual(self.url, '/api/payroll/employees/bulk-create/')
 
     def test_bulk_create_happy_path(self):
         """Test successful bulk creation of employees with different horario_s variations."""
@@ -91,16 +94,16 @@ class EmployeeBulkCreateTests(APITestCase):
 
         # Verify database state
         emp1 = Employee.objects.get(no_nomina="EMP-001")
-        self.assertEqual(emp1.horario_s, "08:00-13:00")
+        self.assertEqual(emp1.horario_s, self.saturday_schedule)
 
         emp2 = Employee.objects.get(no_nomina="EMP-002")
         self.assertIsNone(emp2.horario_s)
 
         emp3 = Employee.objects.get(no_nomina="EMP-003")
-        self.assertEqual(emp3.horario_s, "")
+        self.assertEqual(emp3.horario_s, self.saturday_schedule)
 
         emp4 = Employee.objects.get(no_nomina="EMP-004")
-        self.assertIn(emp4.horario_s, [None, ""])
+        self.assertIsNone(emp4.horario_s)
 
     def test_bulk_create_missing_mandatory_fields(self):
         """Test bulk creation fails when mandatory fields are missing."""
@@ -160,3 +163,56 @@ class EmployeeBulkCreateTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         # Verify atomicity: no valid items from the batch should be inserted
         self.assertEqual(Employee.objects.count(), 0)
+
+
+class PayrollPermissionTests(APITestCase):
+    employees_url = '/api/payroll/employees/'
+    close_url = '/api/payroll/close/'
+
+    def setUp(self):
+        self.hr_group = Group.objects.get_or_create(name=HR_CAPTURE)[0]
+        self.finance_group = Group.objects.get_or_create(name=FINANCE_ADMIN)[0]
+
+    def test_authenticated_user_without_operational_group_gets_403(self):
+        user = User.objects.create_user(username='no_group', password='testpassword')
+        self.client.force_authenticate(user=user)
+
+        response = self.client.get(self.employees_url)
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_hr_capture_can_access_operational_endpoint(self):
+        user = User.objects.create_user(username='hr_capture', password='testpassword')
+        user.groups.add(self.hr_group)
+        self.client.force_authenticate(user=user)
+
+        response = self.client.get(self.employees_url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_finance_admin_can_access_operational_endpoint(self):
+        user = User.objects.create_user(username='finance_admin', password='testpassword')
+        user.groups.add(self.finance_group)
+        self.client.force_authenticate(user=user)
+
+        response = self.client.get(self.employees_url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_hr_capture_cannot_close_payroll(self):
+        user = User.objects.create_user(username='hr_close', password='testpassword')
+        user.groups.add(self.hr_group)
+        self.client.force_authenticate(user=user)
+
+        response = self.client.post(self.close_url, {'semana_num': 1}, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_finance_admin_close_payroll_does_not_fail_by_permission(self):
+        user = User.objects.create_user(username='finance_close', password='testpassword')
+        user.groups.add(self.finance_group)
+        self.client.force_authenticate(user=user)
+
+        response = self.client.post(self.close_url, {'semana_num': 1}, format='json')
+
+        self.assertNotEqual(response.status_code, status.HTTP_403_FORBIDDEN)

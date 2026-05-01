@@ -1,5 +1,6 @@
 import datetime
 from decimal import Decimal
+from django.db import IntegrityError, transaction
 from django.test import SimpleTestCase
 from rest_framework import status
 from rest_framework.test import APITestCase
@@ -7,7 +8,7 @@ from django.contrib.auth.models import Group, User
 from rest_framework_simplejwt.tokens import RefreshToken
 from .models import Employee, ExtraHourBank, Loan, PayrollSnapshot, Schedule
 from .permissions import FINANCE_ADMIN, HR_CAPTURE
-from .services import safe_replace_year
+from .services import calculate_payroll_for_week, safe_replace_year
 
 class SafeReplaceYearTests(SimpleTestCase):
     def test_leap_year_to_non_leap_year(self):
@@ -341,3 +342,112 @@ class PayrollPreviewCommitTests(APITestCase):
         response = self.client.get(self.preview_url, {'semana_num': 10, 'year': 'abc'})
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+class LoanBusinessRuleTests(APITestCase):
+    loans_url = '/api/payroll/loans/'
+
+    def setUp(self):
+        self.hr_group = Group.objects.get_or_create(name=HR_CAPTURE)[0]
+        self.user = User.objects.create_user(username='loan_tester', password='testpassword')
+        self.user.groups.add(self.hr_group)
+        self.client.force_authenticate(user=self.user)
+        self.schedule = Schedule.objects.create(time_range="08:00-18:00")
+        self.employee = Employee.objects.create(
+            no_nomina="EMP-LOAN-001",
+            nombre="Loan User",
+            puesto="Operador",
+            fecha_ingreso=datetime.date(2024, 1, 1),
+            horario_lv=self.schedule,
+        )
+
+    def test_inactive_employee_is_not_included_in_payroll_calculation(self):
+        inactive_employee = Employee.objects.create(
+            no_nomina="EMP-INACTIVE-001",
+            nombre="Inactive User",
+            puesto="Operador",
+            fecha_ingreso=datetime.date(2024, 1, 1),
+            is_active=False,
+            horario_lv=self.schedule,
+        )
+        Loan.objects.create(
+            empleado=inactive_employee,
+            monto_total=Decimal('100.00'),
+            abono_semanal=Decimal('25.00'),
+            pagos_realizados=0,
+            is_active=True,
+        )
+
+        results = calculate_payroll_for_week(11, dry_run=True, target_year=2026)
+
+        self.assertEqual(results, [])
+
+    def test_calculation_ignores_inactive_loan(self):
+        Loan.objects.create(
+            empleado=self.employee,
+            monto_total=Decimal('100.00'),
+            abono_semanal=Decimal('25.00'),
+            pagos_realizados=0,
+            is_active=False,
+        )
+
+        results = calculate_payroll_for_week(11, dry_run=True, target_year=2026)
+
+        self.assertEqual(results, [])
+
+    def test_api_rejects_second_active_loan_for_same_employee(self):
+        Loan.objects.create(
+            empleado=self.employee,
+            monto_total=Decimal('100.00'),
+            abono_semanal=Decimal('25.00'),
+            pagos_realizados=0,
+            is_active=True,
+        )
+
+        response = self.client.post(self.loans_url, {
+            'empleado': self.employee.no_nomina,
+            'monto_total': '200.00',
+            'abono_semanal': '50.00',
+            'pagos_realizados': 0,
+            'is_active': True,
+            'status': 'PENDIENTE',
+        }, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('empleado', response.data)
+
+    def test_updating_same_active_loan_does_not_fail_false_positive(self):
+        loan = Loan.objects.create(
+            empleado=self.employee,
+            monto_total=Decimal('100.00'),
+            abono_semanal=Decimal('25.00'),
+            pagos_realizados=0,
+            is_active=True,
+        )
+
+        response = self.client.patch(
+            f'{self.loans_url}{loan.id}/',
+            {'monto_total': '150.00'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_db_constraint_rejects_second_active_loan_for_same_employee(self):
+        Loan.objects.create(
+            empleado=self.employee,
+            monto_total=Decimal('100.00'),
+            abono_semanal=Decimal('25.00'),
+            pagos_realizados=0,
+            is_active=True,
+        )
+
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                Loan.objects.create(
+                    empleado=self.employee,
+                    monto_total=Decimal('200.00'),
+                    abono_semanal=Decimal('50.00'),
+                    pagos_realizados=0,
+                    is_active=True,
+                )

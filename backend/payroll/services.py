@@ -303,10 +303,21 @@ def calculate_payroll_for_week(week_num, dry_run=True, target_year=None):
     lookback_monday = target_monday - timedelta(weeks=4)
 
     # Trip 1: Employees
-    employees = Employee.objects.select_related('horario_lv', 'horario_s').all()
+    employees = Employee.objects.select_related('horario_lv', 'horario_s').filter(is_active=True)
     
     # Trip 2 & 3: Loans & Banks
-    loans_dict = {loan.empleado_id: loan for loan in Loan.objects.all()}
+    loans_dict = {}
+    duplicate_active_loan_employee_ids = set()
+    for loan in Loan.objects.filter(is_active=True).order_by('empleado_id', 'id'):
+        if loan.empleado_id in loans_dict:
+            duplicate_active_loan_employee_ids.add(loan.empleado_id)
+        else:
+            loans_dict[loan.empleado_id] = loan
+
+    if duplicate_active_loan_employee_ids:
+        duplicate_ids = ', '.join(str(emp_id) for emp_id in sorted(duplicate_active_loan_employee_ids))
+        raise ValueError(f"Multiple active loans found for employee(s): {duplicate_ids}")
+
     banks_dict = {bank.empleado_id: bank for bank in ExtraHourBank.objects.all()}
     
     # Trip 4: IncidenceCatalog cache

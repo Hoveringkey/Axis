@@ -34,6 +34,21 @@ class LoanSerializer(serializers.ModelSerializer):
         model = Loan
         fields = '__all__'
 
+    def validate(self, attrs):
+        empleado = attrs.get('empleado', getattr(self.instance, 'empleado', None))
+        is_active = attrs.get('is_active', getattr(self.instance, 'is_active', True))
+
+        if empleado and is_active:
+            active_loans = Loan.objects.filter(empleado=empleado, is_active=True)
+            if self.instance:
+                active_loans = active_loans.exclude(pk=self.instance.pk)
+            if active_loans.exists():
+                raise serializers.ValidationError({
+                    'empleado': 'Employee already has an active loan.'
+                })
+
+        return attrs
+
 class ExtraHourBankSerializer(serializers.ModelSerializer):
     class Meta:
         model = ExtraHourBank

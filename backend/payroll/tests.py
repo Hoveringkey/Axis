@@ -1,12 +1,12 @@
 import datetime
 from decimal import Decimal
 from django.db import IntegrityError, transaction
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, TestCase
 from rest_framework import status
 from rest_framework.test import APITestCase
 from django.contrib.auth.models import Group, User
 from rest_framework_simplejwt.tokens import RefreshToken
-from .models import Employee, ExtraHourBank, Loan, PayrollSnapshot, Schedule
+from .models import Employee, ExtraHourBank, Loan, PayrollClosure, PayrollSnapshot, Schedule
 from .permissions import FINANCE_ADMIN, HR_CAPTURE
 from .services import calculate_payroll_for_week, safe_replace_year
 
@@ -342,6 +342,47 @@ class PayrollPreviewCommitTests(APITestCase):
         response = self.client.get(self.preview_url, {'semana_num': 10, 'year': 'abc'})
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+class PayrollClosureModelTests(TestCase):
+    def test_closure_iso_year_week_is_unique(self):
+        PayrollClosure.objects.create(iso_year=2026, semana_num=10)
+
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                PayrollClosure.objects.create(iso_year=2026, semana_num=10)
+
+    def test_snapshot_can_exist_without_closure_for_historical_compatibility(self):
+        snapshot = PayrollSnapshot.objects.create(
+            semana_num=10,
+            empleado_no_nomina='EMP-HIST-001',
+            empleado_nombre='Historical User',
+            total_pagar=Decimal('100.00'),
+            desglose={},
+        )
+
+        self.assertIsNone(snapshot.iso_year)
+        self.assertIsNone(snapshot.closure)
+
+    def test_snapshot_can_be_associated_to_closure(self):
+        closure = PayrollClosure.objects.create(
+            iso_year=2026,
+            semana_num=10,
+            total_employees=1,
+            total_amount=Decimal('100.00'),
+        )
+        snapshot = PayrollSnapshot.objects.create(
+            iso_year=2026,
+            semana_num=10,
+            closure=closure,
+            empleado_no_nomina='EMP-CLOSE-001',
+            empleado_nombre='Closed User',
+            total_pagar=Decimal('100.00'),
+            desglose={},
+        )
+
+        self.assertEqual(snapshot.closure, closure)
+        self.assertEqual(list(closure.snapshots.all()), [snapshot])
 
 
 class LoanBusinessRuleTests(APITestCase):

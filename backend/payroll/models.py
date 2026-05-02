@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.db import models
 
 class Schedule(models.Model):
@@ -75,9 +76,44 @@ class ExtraHourBank(models.Model):
     def __str__(self):
         return f"Extra Hours for {self.empleado.nombre}: {self.horas_deuda}"
 
+class PayrollClosure(models.Model):
+    iso_year = models.IntegerField()
+    semana_num = models.IntegerField()
+    closed_at = models.DateTimeField(auto_now_add=True)
+    closed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+    )
+    total_employees = models.IntegerField(default=0)
+    total_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    status = models.CharField(max_length=20, default='CLOSED')
+    checksum = models.CharField(max_length=128, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['iso_year', 'semana_num'],
+                name='unique_payroll_closure_iso_year_week',
+            ),
+        ]
+        ordering = ['-iso_year', '-semana_num']
+
+    def __str__(self):
+        return f"Payroll closure {self.iso_year}-W{self.semana_num}"
+
 class PayrollSnapshot(models.Model):
     """Immutable audit record written once when a payroll week is permanently closed."""
+    iso_year = models.IntegerField(null=True, blank=True, db_index=True)
     semana_num = models.IntegerField(db_index=True)
+    closure = models.ForeignKey(
+        PayrollClosure,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name='snapshots',
+    )
     fecha_cierre = models.DateTimeField(auto_now_add=True)
     empleado_no_nomina = models.CharField(max_length=50)
     empleado_nombre = models.CharField(max_length=255)

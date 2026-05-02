@@ -13,7 +13,13 @@ from .serializers import (
     ExtraHourBankSerializer,
     PayrollSnapshotSerializer
 )
-from .services import calculate_payroll_for_week, get_dashboard_metrics, get_current_payroll_week
+from .services import (
+    PayrollAlreadyClosedError,
+    calculate_payroll_for_week,
+    commit_payroll_for_week,
+    get_dashboard_metrics,
+    get_current_payroll_week,
+)
 
 
 def _parse_week_number(raw_week_num):
@@ -224,6 +230,13 @@ class PayrollSnapshotViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         qs = PayrollSnapshot.objects.all()
+        iso_year = self.request.query_params.get('iso_year')
+        if iso_year is not None:
+            try:
+                qs = qs.filter(iso_year=int(iso_year))
+            except ValueError:
+                return qs.none()
+
         semana_num = self.request.query_params.get('semana_num')
         if semana_num is not None:
             try:
@@ -254,9 +267,14 @@ class ClosePayrollView(views.APIView):
         if error:
             return Response(error, status=status.HTTP_400_BAD_REQUEST)
 
-        # Commit action, mutates ExtraHourBank and explicitly performs DB writes
-        with transaction.atomic():
-            results = calculate_payroll_for_week(week_num, dry_run=False)
+        target_year, error = _parse_optional_year(request.data.get('year'))
+        if error:
+            return Response(error, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            results = commit_payroll_for_week(week_num, target_year=target_year, user=request.user)
+        except PayrollAlreadyClosedError:
+            return Response({'error': 'Payroll week is already closed.'}, status=status.HTTP_409_CONFLICT)
         return Response({'results': results}, status=status.HTTP_200_OK)
 
 
@@ -284,6 +302,12 @@ class PayrollCommitView(views.APIView):
         if error:
             return Response(error, status=status.HTTP_400_BAD_REQUEST)
 
-        with transaction.atomic():
-            results = calculate_payroll_for_week(week_num, dry_run=False)
+        target_year, error = _parse_optional_year(request.data.get('year'))
+        if error:
+            return Response(error, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            results = commit_payroll_for_week(week_num, target_year=target_year, user=request.user)
+        except PayrollAlreadyClosedError:
+            return Response({'error': 'Payroll week is already closed.'}, status=status.HTTP_409_CONFLICT)
         return Response({'results': results}, status=status.HTTP_200_OK)

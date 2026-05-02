@@ -1,14 +1,34 @@
 import datetime
+import hashlib
+import json
 from datetime import timedelta
 from decimal import Decimal
 from collections import defaultdict
 from django.db.models import Sum, Q
-from django.db import transaction
-from .models import Employee, IncidenceRecord, Loan, ExtraHourBank, IncidenceCatalog, PayrollSnapshot
+from django.db import IntegrityError, transaction
+from .models import Employee, IncidenceRecord, Loan, ExtraHourBank, IncidenceCatalog, PayrollClosure, PayrollSnapshot
+
+
+class PayrollAlreadyClosedError(Exception):
+    pass
 
 def get_current_payroll_week():
     """Returns the current ISO-8601 week number."""
     return datetime.date.today().isocalendar()[1]
+
+def resolve_payroll_iso_year(week_num, target_year=None):
+    if target_year is not None:
+        return int(target_year)
+
+    today_iso = datetime.date.today().isocalendar()
+    current_year = today_iso[0]
+    current_week = today_iso[1]
+
+    if week_num > 50 and current_week < 10:
+        return current_year - 1
+    if week_num < 10 and current_week > 50:
+        return current_year + 1
+    return current_year
 
 def get_dashboard_metrics() -> dict:
     """
@@ -284,21 +304,13 @@ def calculate_payable_extra_hours(employee, target_week_num, target_year, week_i
         'mutation': mutation
     }
 
-def calculate_payroll_for_week(week_num, dry_run=True, target_year=None):
-    # Determine the correct target_year to handle year boundaries
-    if target_year is None:
-        today_iso = datetime.date.today().isocalendar()
-        current_year = today_iso[0]
-        current_week = today_iso[1]
-
-        if week_num > 50 and current_week < 10:
-            target_year = current_year - 1
-        elif week_num < 10 and current_week > 50:
-            target_year = current_year + 1
-        else:
-            target_year = current_year
+def calculate_payroll_for_week(week_num, dry_run=True, target_year=None, closure=None):
+    target_year = resolve_payroll_iso_year(week_num, target_year)
+    if not dry_run and closure is None:
+        raise ValueError("Payroll commits must use commit_payroll_for_week().")
 
     target_monday = datetime.date.fromisocalendar(target_year, week_num, 1)
+    target_sunday = target_monday + timedelta(days=6)
     previous_saturday = target_monday - timedelta(days=2)
     lookback_monday = target_monday - timedelta(weeks=4)
 
@@ -325,7 +337,9 @@ def calculate_payroll_for_week(week_num, dry_run=True, target_year=None):
 
     # Trip 5: Query A - Current week incidences
     current_week_incidences = IncidenceRecord.objects.filter(
-        semana_num=week_num
+        semana_num=week_num,
+        fecha__gte=target_monday,
+        fecha__lte=target_sunday,
     ).select_related('tipo_incidencia')
     
     weekly_incidences_map = defaultdict(list)
@@ -520,7 +534,9 @@ def calculate_payroll_for_week(week_num, dry_run=True, target_year=None):
                     - Decimal(str(row.get('loan_deduction', 0)))
                 )
                 snapshots.append(PayrollSnapshot(
+                    iso_year=target_year,
                     semana_num=week_num,
+                    closure=closure,
                     empleado_no_nomina=row['no_nomina'],
                     empleado_nombre=row['nombre'],
                     total_pagar=total_pagar.quantize(Decimal('0.01')),
@@ -550,5 +566,45 @@ def calculate_payroll_for_week(week_num, dry_run=True, target_year=None):
                         loan_obj.is_active = False
                         loan_obj.status = 'PAGADO'
                         loan_obj.save()
+
+    return results
+
+def commit_payroll_for_week(week_num, target_year=None, user=None):
+    iso_year = resolve_payroll_iso_year(week_num, target_year)
+    closed_by = user if user is not None and user.is_authenticated else None
+
+    with transaction.atomic():
+        if PayrollClosure.objects.filter(iso_year=iso_year, semana_num=week_num).exists():
+            raise PayrollAlreadyClosedError("Payroll week is already closed.")
+
+        try:
+            closure = PayrollClosure.objects.create(
+                iso_year=iso_year,
+                semana_num=week_num,
+                closed_by=closed_by,
+                status='CLOSED',
+            )
+        except IntegrityError:
+            raise PayrollAlreadyClosedError("Payroll week is already closed.")
+
+        results = calculate_payroll_for_week(
+            week_num,
+            dry_run=False,
+            target_year=iso_year,
+            closure=closure,
+        )
+
+        summary = closure.snapshots.aggregate(total_amount=Sum('total_pagar'))
+        closure.total_employees = closure.snapshots.count()
+        closure.total_amount = summary['total_amount'] or Decimal('0.00')
+        checksum_payload = {
+            'iso_year': iso_year,
+            'semana_num': week_num,
+            'results': results,
+        }
+        closure.checksum = hashlib.sha256(
+            json.dumps(checksum_payload, sort_keys=True, default=str).encode('utf-8')
+        ).hexdigest()
+        closure.save(update_fields=['total_employees', 'total_amount', 'checksum'])
 
     return results

@@ -1,12 +1,13 @@
 import datetime
 from decimal import Decimal
-from django.db import IntegrityError, transaction
-from django.test import SimpleTestCase
+from unittest import skipUnless
+from django.db import DatabaseError, IntegrityError, connection, transaction
+from django.test import SimpleTestCase, TestCase, TransactionTestCase
 from rest_framework import status
 from rest_framework.test import APITestCase
 from django.contrib.auth.models import Group, User
 from rest_framework_simplejwt.tokens import RefreshToken
-from .models import Employee, ExtraHourBank, Loan, PayrollSnapshot, Schedule
+from .models import Employee, ExtraHourBank, IncidenceCatalog, IncidenceRecord, Loan, PayrollClosure, PayrollSnapshot, Schedule
 from .permissions import FINANCE_ADMIN, HR_CAPTURE
 from .services import calculate_payroll_for_week, safe_replace_year
 
@@ -223,6 +224,8 @@ class PayrollPermissionTests(APITestCase):
 class PayrollPreviewCommitTests(APITestCase):
     preview_url = '/api/payroll/preview/'
     commit_url = '/api/payroll/commit/'
+    close_url = '/api/payroll/close/'
+    snapshots_url = '/api/payroll/snapshots/'
 
     def setUp(self):
         self.hr_group = Group.objects.get_or_create(name=HR_CAPTURE)[0]
@@ -286,6 +289,7 @@ class PayrollPreviewCommitTests(APITestCase):
         response = self.client.get(self.preview_url, {'semana_num': 10, 'year': 2026})
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(PayrollClosure.objects.count(), 0)
         self.assertEqual(PayrollSnapshot.objects.count(), 0)
 
     def test_preview_does_not_modify_loans(self):
@@ -342,6 +346,246 @@ class PayrollPreviewCommitTests(APITestCase):
         response = self.client.get(self.preview_url, {'semana_num': 10, 'year': 'abc'})
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_commit_accepts_year_and_creates_closure_snapshot_summary_and_checksum(self):
+        user = self.authenticate_with_group(self.finance_group)
+
+        response = self.client.post(self.commit_url, {'semana_num': 10, 'year': 2026}, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        closure = PayrollClosure.objects.get(iso_year=2026, semana_num=10)
+        snapshot = PayrollSnapshot.objects.get(closure=closure)
+        self.assertEqual(closure.closed_by, user)
+        self.assertEqual(snapshot.iso_year, 2026)
+        self.assertEqual(snapshot.semana_num, 10)
+        self.assertEqual(snapshot.closure, closure)
+        self.assertEqual(closure.total_employees, 1)
+        self.assertEqual(closure.total_amount, snapshot.total_pagar)
+        self.assertTrue(closure.checksum)
+
+    def test_second_commit_returns_409_and_does_not_duplicate_or_mutate_again(self):
+        self.authenticate_with_group(self.finance_group)
+
+        first_response = self.client.post(self.commit_url, {'semana_num': 10, 'year': 2026}, format='json')
+        self.assertEqual(first_response.status_code, status.HTTP_200_OK)
+        self.loan.refresh_from_db()
+        self.bank.refresh_from_db()
+        loan_payments_after_first = self.loan.pagos_realizados
+        bank_hours_after_first = self.bank.horas_deuda
+        snapshot_count_after_first = PayrollSnapshot.objects.count()
+
+        second_response = self.client.post(self.commit_url, {'semana_num': 10, 'year': 2026}, format='json')
+
+        self.assertEqual(second_response.status_code, status.HTTP_409_CONFLICT)
+        self.assertEqual(second_response.data['error'], 'Payroll week is already closed.')
+        self.loan.refresh_from_db()
+        self.bank.refresh_from_db()
+        self.assertEqual(self.loan.pagos_realizados, loan_payments_after_first)
+        self.assertEqual(self.bank.horas_deuda, bank_hours_after_first)
+        self.assertEqual(PayrollSnapshot.objects.count(), snapshot_count_after_first)
+        self.assertEqual(PayrollClosure.objects.count(), 1)
+
+    def test_legacy_close_view_uses_duplicate_closure_protection(self):
+        self.authenticate_with_group(self.finance_group)
+
+        first_response = self.client.post(self.close_url, {'semana_num': 10, 'year': 2026}, format='json')
+        second_response = self.client.post(self.close_url, {'semana_num': 10, 'year': 2026}, format='json')
+
+        self.assertEqual(first_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(second_response.status_code, status.HTTP_409_CONFLICT)
+        self.assertEqual(second_response.data['error'], 'Payroll week is already closed.')
+
+    def test_snapshots_can_be_filtered_by_iso_year_and_semana_num(self):
+        self.authenticate_with_group(self.finance_group)
+        closure_2026 = PayrollClosure.objects.create(iso_year=2026, semana_num=10)
+        closure_2027 = PayrollClosure.objects.create(iso_year=2027, semana_num=10)
+        PayrollSnapshot.objects.create(
+            iso_year=2026,
+            semana_num=10,
+            closure=closure_2026,
+            empleado_no_nomina='EMP-SNAP-2026',
+            empleado_nombre='Snapshot 2026',
+            total_pagar=Decimal('100.00'),
+            desglose={},
+        )
+        PayrollSnapshot.objects.create(
+            iso_year=2027,
+            semana_num=10,
+            closure=closure_2027,
+            empleado_no_nomina='EMP-SNAP-2027',
+            empleado_nombre='Snapshot 2027',
+            total_pagar=Decimal('200.00'),
+            desglose={},
+        )
+
+        response = self.client.get(self.snapshots_url, {'iso_year': 2026, 'semana_num': 10})
+        invalid_response = self.client.get(self.snapshots_url, {'iso_year': 'invalid', 'semana_num': 10})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['iso_year'], 2026)
+        self.assertEqual(response.data[0]['semana_num'], 10)
+        self.assertEqual(invalid_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(invalid_response.data, [])
+
+
+class PayrollClosureModelTests(TestCase):
+    def test_direct_non_dry_run_calculation_without_closure_is_rejected(self):
+        with self.assertRaisesMessage(ValueError, "Payroll commits must use commit_payroll_for_week()."):
+            calculate_payroll_for_week(10, dry_run=False, target_year=2026)
+
+    def test_current_week_incidences_are_filtered_by_target_iso_year_dates(self):
+        schedule = Schedule.objects.create(time_range="08:00-18:00")
+        employee = Employee.objects.create(
+            no_nomina="EMP-ISO-001",
+            nombre="ISO Filter User",
+            puesto="Operador",
+            fecha_ingreso=datetime.date(2024, 1, 1),
+            horario_lv=schedule,
+        )
+        absence = IncidenceCatalog.objects.create(tipo="Falta", abreviatura="F")
+        target_date = datetime.date.fromisocalendar(2026, 11, 1)
+        other_year_date = datetime.date.fromisocalendar(2025, 11, 1)
+        IncidenceRecord.objects.create(
+            fecha=target_date,
+            semana_num=11,
+            empleado=employee,
+            tipo_incidencia=absence,
+            cantidad=Decimal('1.00'),
+        )
+        IncidenceRecord.objects.create(
+            fecha=other_year_date,
+            semana_num=11,
+            empleado=employee,
+            tipo_incidencia=absence,
+            cantidad=Decimal('1.00'),
+        )
+
+        results = calculate_payroll_for_week(11, dry_run=True, target_year=2026)
+
+        self.assertEqual(len(results), 1)
+        self.assertIn(target_date.isoformat(), results[0]['ausentismos'])
+        self.assertNotIn(other_year_date.isoformat(), results[0]['ausentismos'])
+
+    def test_closure_iso_year_week_is_unique(self):
+        PayrollClosure.objects.create(iso_year=2026, semana_num=10)
+
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                PayrollClosure.objects.create(iso_year=2026, semana_num=10)
+
+    def test_snapshot_can_exist_without_closure_for_historical_compatibility(self):
+        snapshot = PayrollSnapshot.objects.create(
+            semana_num=10,
+            empleado_no_nomina='EMP-HIST-001',
+            empleado_nombre='Historical User',
+            total_pagar=Decimal('100.00'),
+            desglose={},
+        )
+
+        self.assertIsNone(snapshot.iso_year)
+        self.assertIsNone(snapshot.closure)
+
+    def test_snapshot_can_be_associated_to_closure(self):
+        closure = PayrollClosure.objects.create(
+            iso_year=2026,
+            semana_num=10,
+            total_employees=1,
+            total_amount=Decimal('100.00'),
+        )
+        snapshot = PayrollSnapshot.objects.create(
+            iso_year=2026,
+            semana_num=10,
+            closure=closure,
+            empleado_no_nomina='EMP-CLOSE-001',
+            empleado_nombre='Closed User',
+            total_pagar=Decimal('100.00'),
+            desglose={},
+        )
+
+        self.assertEqual(snapshot.closure, closure)
+        self.assertEqual(list(closure.snapshots.all()), [snapshot])
+
+    def test_snapshot_closure_employee_is_unique(self):
+        closure = PayrollClosure.objects.create(iso_year=2026, semana_num=10)
+        PayrollSnapshot.objects.create(
+            iso_year=2026,
+            semana_num=10,
+            closure=closure,
+            empleado_no_nomina='EMP-DUP-001',
+            empleado_nombre='Duplicate User',
+            total_pagar=Decimal('100.00'),
+            desglose={},
+        )
+
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                PayrollSnapshot.objects.create(
+                    iso_year=2026,
+                    semana_num=10,
+                    closure=closure,
+                    empleado_no_nomina='EMP-DUP-001',
+                    empleado_nombre='Duplicate User',
+                    total_pagar=Decimal('200.00'),
+                    desglose={},
+                )
+
+    def test_historical_snapshots_with_null_closure_can_duplicate_employee(self):
+        PayrollSnapshot.objects.create(
+            semana_num=10,
+            empleado_no_nomina='EMP-HIST-DUP',
+            empleado_nombre='Historical Duplicate',
+            total_pagar=Decimal('100.00'),
+            desglose={},
+        )
+        PayrollSnapshot.objects.create(
+            semana_num=10,
+            empleado_no_nomina='EMP-HIST-DUP',
+            empleado_nombre='Historical Duplicate',
+            total_pagar=Decimal('200.00'),
+            desglose={},
+        )
+
+        self.assertEqual(
+            PayrollSnapshot.objects.filter(closure__isnull=True, empleado_no_nomina='EMP-HIST-DUP').count(),
+            2,
+        )
+
+
+@skipUnless(connection.vendor == 'postgresql', 'PayrollSnapshot immutability trigger is PostgreSQL-specific.')
+class PayrollSnapshotImmutabilityTriggerTests(TransactionTestCase):
+    def create_snapshot(self):
+        return PayrollSnapshot.objects.create(
+            iso_year=2026,
+            semana_num=10,
+            empleado_no_nomina='EMP-IMM-001',
+            empleado_nombre='Immutable User',
+            total_pagar=Decimal('100.00'),
+            desglose={'source': 'test'},
+        )
+
+    def test_insert_still_works(self):
+        snapshot = self.create_snapshot()
+
+        self.assertIsNotNone(snapshot.pk)
+        self.assertEqual(PayrollSnapshot.objects.count(), 1)
+
+    def test_update_is_blocked_by_database_trigger(self):
+        snapshot = self.create_snapshot()
+
+        with self.assertRaises(DatabaseError) as exc:
+            PayrollSnapshot.objects.filter(pk=snapshot.pk).update(total_pagar=Decimal('200.00'))
+
+        self.assertIn('PayrollSnapshot is immutable and cannot be updated or deleted', str(exc.exception))
+
+    def test_delete_is_blocked_by_database_trigger(self):
+        snapshot = self.create_snapshot()
+
+        with self.assertRaises(DatabaseError) as exc:
+            PayrollSnapshot.objects.filter(pk=snapshot.pk).delete()
+
+        self.assertIn('PayrollSnapshot is immutable and cannot be updated or deleted', str(exc.exception))
+        self.assertTrue(PayrollSnapshot.objects.filter(pk=snapshot.pk).exists())
 
 
 class LoanBusinessRuleTests(APITestCase):

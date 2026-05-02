@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Employee, IncidenceCatalog, IncidenceRecord, Loan, ExtraHourBank
+from .models import Employee, IncidenceCatalog, IncidenceRecord, Loan, ExtraHourBank, PayrollClosure, PayrollSnapshot
 
 @admin.register(Employee)
 class EmployeeAdmin(admin.ModelAdmin):
@@ -26,3 +26,15 @@ class LoanAdmin(admin.ModelAdmin):
 class ExtraHourBankAdmin(admin.ModelAdmin):
     list_display = ('empleado', 'horas_deuda')
     search_fields = ('empleado__no_nomina', 'empleado__nombre')
+
+@admin.register(PayrollClosure)
+class PayrollClosureAdmin(admin.ModelAdmin):
+    list_display = ('iso_year', 'semana_num', 'closed_at', 'closed_by', 'total_employees', 'total_amount', 'status')
+    list_filter = ('iso_year', 'semana_num', 'status')
+    search_fields = ('closed_by__username', 'checksum')
+
+@admin.register(PayrollSnapshot)
+class PayrollSnapshotAdmin(admin.ModelAdmin):
+    list_display = ('iso_year', 'semana_num', 'empleado_no_nomina', 'empleado_nombre', 'total_pagar', 'fecha_cierre')
+    list_filter = ('iso_year', 'semana_num')
+    search_fields = ('empleado_no_nomina', 'empleado_nombre')

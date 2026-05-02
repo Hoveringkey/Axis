@@ -1,7 +1,8 @@
 import datetime
 from decimal import Decimal
-from django.db import IntegrityError, transaction
-from django.test import SimpleTestCase, TestCase
+from unittest import skipUnless
+from django.db import DatabaseError, IntegrityError, connection, transaction
+from django.test import SimpleTestCase, TestCase, TransactionTestCase
 from rest_framework import status
 from rest_framework.test import APITestCase
 from django.contrib.auth.models import Group, User
@@ -549,6 +550,42 @@ class PayrollClosureModelTests(TestCase):
             PayrollSnapshot.objects.filter(closure__isnull=True, empleado_no_nomina='EMP-HIST-DUP').count(),
             2,
         )
+
+
+@skipUnless(connection.vendor == 'postgresql', 'PayrollSnapshot immutability trigger is PostgreSQL-specific.')
+class PayrollSnapshotImmutabilityTriggerTests(TransactionTestCase):
+    def create_snapshot(self):
+        return PayrollSnapshot.objects.create(
+            iso_year=2026,
+            semana_num=10,
+            empleado_no_nomina='EMP-IMM-001',
+            empleado_nombre='Immutable User',
+            total_pagar=Decimal('100.00'),
+            desglose={'source': 'test'},
+        )
+
+    def test_insert_still_works(self):
+        snapshot = self.create_snapshot()
+
+        self.assertIsNotNone(snapshot.pk)
+        self.assertEqual(PayrollSnapshot.objects.count(), 1)
+
+    def test_update_is_blocked_by_database_trigger(self):
+        snapshot = self.create_snapshot()
+
+        with self.assertRaises(DatabaseError) as exc:
+            PayrollSnapshot.objects.filter(pk=snapshot.pk).update(total_pagar=Decimal('200.00'))
+
+        self.assertIn('PayrollSnapshot is immutable and cannot be updated or deleted', str(exc.exception))
+
+    def test_delete_is_blocked_by_database_trigger(self):
+        snapshot = self.create_snapshot()
+
+        with self.assertRaises(DatabaseError) as exc:
+            PayrollSnapshot.objects.filter(pk=snapshot.pk).delete()
+
+        self.assertIn('PayrollSnapshot is immutable and cannot be updated or deleted', str(exc.exception))
+        self.assertTrue(PayrollSnapshot.objects.filter(pk=snapshot.pk).exists())
 
 
 class LoanBusinessRuleTests(APITestCase):

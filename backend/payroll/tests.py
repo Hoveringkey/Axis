@@ -6,7 +6,7 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 from django.contrib.auth.models import Group, User
 from rest_framework_simplejwt.tokens import RefreshToken
-from .models import Employee, ExtraHourBank, Loan, PayrollClosure, PayrollSnapshot, Schedule
+from .models import Employee, ExtraHourBank, IncidenceCatalog, IncidenceRecord, Loan, PayrollClosure, PayrollSnapshot, Schedule
 from .permissions import FINANCE_ADMIN, HR_CAPTURE
 from .services import calculate_payroll_for_week, safe_replace_year
 
@@ -429,6 +429,43 @@ class PayrollPreviewCommitTests(APITestCase):
 
 
 class PayrollClosureModelTests(TestCase):
+    def test_direct_non_dry_run_calculation_without_closure_is_rejected(self):
+        with self.assertRaisesMessage(ValueError, "Payroll commits must use commit_payroll_for_week()."):
+            calculate_payroll_for_week(10, dry_run=False, target_year=2026)
+
+    def test_current_week_incidences_are_filtered_by_target_iso_year_dates(self):
+        schedule = Schedule.objects.create(time_range="08:00-18:00")
+        employee = Employee.objects.create(
+            no_nomina="EMP-ISO-001",
+            nombre="ISO Filter User",
+            puesto="Operador",
+            fecha_ingreso=datetime.date(2024, 1, 1),
+            horario_lv=schedule,
+        )
+        absence = IncidenceCatalog.objects.create(tipo="Falta", abreviatura="F")
+        target_date = datetime.date.fromisocalendar(2026, 11, 1)
+        other_year_date = datetime.date.fromisocalendar(2025, 11, 1)
+        IncidenceRecord.objects.create(
+            fecha=target_date,
+            semana_num=11,
+            empleado=employee,
+            tipo_incidencia=absence,
+            cantidad=Decimal('1.00'),
+        )
+        IncidenceRecord.objects.create(
+            fecha=other_year_date,
+            semana_num=11,
+            empleado=employee,
+            tipo_incidencia=absence,
+            cantidad=Decimal('1.00'),
+        )
+
+        results = calculate_payroll_for_week(11, dry_run=True, target_year=2026)
+
+        self.assertEqual(len(results), 1)
+        self.assertIn(target_date.isoformat(), results[0]['ausentismos'])
+        self.assertNotIn(other_year_date.isoformat(), results[0]['ausentismos'])
+
     def test_closure_iso_year_week_is_unique(self):
         PayrollClosure.objects.create(iso_year=2026, semana_num=10)
 
@@ -467,6 +504,51 @@ class PayrollClosureModelTests(TestCase):
 
         self.assertEqual(snapshot.closure, closure)
         self.assertEqual(list(closure.snapshots.all()), [snapshot])
+
+    def test_snapshot_closure_employee_is_unique(self):
+        closure = PayrollClosure.objects.create(iso_year=2026, semana_num=10)
+        PayrollSnapshot.objects.create(
+            iso_year=2026,
+            semana_num=10,
+            closure=closure,
+            empleado_no_nomina='EMP-DUP-001',
+            empleado_nombre='Duplicate User',
+            total_pagar=Decimal('100.00'),
+            desglose={},
+        )
+
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                PayrollSnapshot.objects.create(
+                    iso_year=2026,
+                    semana_num=10,
+                    closure=closure,
+                    empleado_no_nomina='EMP-DUP-001',
+                    empleado_nombre='Duplicate User',
+                    total_pagar=Decimal('200.00'),
+                    desglose={},
+                )
+
+    def test_historical_snapshots_with_null_closure_can_duplicate_employee(self):
+        PayrollSnapshot.objects.create(
+            semana_num=10,
+            empleado_no_nomina='EMP-HIST-DUP',
+            empleado_nombre='Historical Duplicate',
+            total_pagar=Decimal('100.00'),
+            desglose={},
+        )
+        PayrollSnapshot.objects.create(
+            semana_num=10,
+            empleado_no_nomina='EMP-HIST-DUP',
+            empleado_nombre='Historical Duplicate',
+            total_pagar=Decimal('200.00'),
+            desglose={},
+        )
+
+        self.assertEqual(
+            PayrollSnapshot.objects.filter(closure__isnull=True, empleado_no_nomina='EMP-HIST-DUP').count(),
+            2,
+        )
 
 
 class LoanBusinessRuleTests(APITestCase):

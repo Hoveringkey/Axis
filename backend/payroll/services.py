@@ -306,7 +306,11 @@ def calculate_payable_extra_hours(employee, target_week_num, target_year, week_i
 
 def calculate_payroll_for_week(week_num, dry_run=True, target_year=None, closure=None):
     target_year = resolve_payroll_iso_year(week_num, target_year)
+    if not dry_run and closure is None:
+        raise ValueError("Payroll commits must use commit_payroll_for_week().")
+
     target_monday = datetime.date.fromisocalendar(target_year, week_num, 1)
+    target_sunday = target_monday + timedelta(days=6)
     previous_saturday = target_monday - timedelta(days=2)
     lookback_monday = target_monday - timedelta(weeks=4)
 
@@ -333,7 +337,9 @@ def calculate_payroll_for_week(week_num, dry_run=True, target_year=None, closure
 
     # Trip 5: Query A - Current week incidences
     current_week_incidences = IncidenceRecord.objects.filter(
-        semana_num=week_num
+        semana_num=week_num,
+        fecha__gte=target_monday,
+        fecha__lte=target_sunday,
     ).select_related('tipo_incidencia')
     
     weekly_incidences_map = defaultdict(list)

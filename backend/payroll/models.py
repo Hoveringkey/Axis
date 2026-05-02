@@ -121,6 +121,12 @@ class PayrollSnapshot(models.Model):
     desglose = models.JSONField()  # Full calculation dict for this employee
 
     class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['closure', 'empleado_no_nomina'],
+                name='unique_payroll_snapshot_closure_employee',
+            ),
+        ]
         ordering = ['-fecha_cierre']
 
     def __str__(self):

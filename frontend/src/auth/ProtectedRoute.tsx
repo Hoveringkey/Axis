@@ -9,6 +9,13 @@ interface ProtectedRouteProps {
   allowedGroups?: string[];
 }
 
+const AccessDenied = () => (
+  <div role="alert" style={{ padding: '2rem' }}>
+    <h2>Acceso denegado</h2>
+    <p>No tienes permiso para acceder a esta sección.</p>
+  </div>
+);
+
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   children,
   requiredPermission,
@@ -26,11 +33,11 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   }
 
   if (requiredPermission && !hasPermission(requiredPermission)) {
-    return <Navigate to="/login" replace />;
+    return <AccessDenied />;
   }
 
   if (allowedGroups && allowedGroups.length > 0 && !hasGroup(allowedGroups)) {
-    return <Navigate to="/" replace />;
+    return <AccessDenied />;
   }
 
   return <>{children}</>;

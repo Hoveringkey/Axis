@@ -80,3 +80,7 @@ Desktop.ini
 
 # Local Supabase CLI workspace
 supabase/
+
+# Sensitive local employee import artifacts
+backend/datos_empleados.csv
+backend/import_real_employees.py

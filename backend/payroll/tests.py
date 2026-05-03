@@ -588,6 +588,96 @@ class PayrollSnapshotImmutabilityTriggerTests(TransactionTestCase):
         self.assertTrue(PayrollSnapshot.objects.filter(pk=snapshot.pk).exists())
 
 
+@skipUnless(connection.vendor == 'postgresql', 'Supabase RLS hardening is PostgreSQL-specific.')
+class SupabaseRLSHardeningTests(TransactionTestCase):
+    sensitive_tables = (
+        'payroll_employee',
+        'payroll_incidencerecord',
+        'payroll_loan',
+        'payroll_extrahourbank',
+        'payroll_payrollsnapshot',
+        'payroll_payrollclosure',
+        'payroll_incidencecatalog',
+        'payroll_schedule',
+    )
+
+    def test_sensitive_tables_have_rls_enabled_without_force_rls(self):
+        with connection.cursor() as cursor:
+            for table_name in self.sensitive_tables:
+                cursor.execute(
+                    """
+                    SELECT c.relrowsecurity, c.relforcerowsecurity
+                    FROM pg_class c
+                    JOIN pg_namespace n ON n.oid = c.relnamespace
+                    WHERE n.nspname = 'public' AND c.relname = %s
+                    """,
+                    [table_name],
+                )
+                row = cursor.fetchone()
+
+                self.assertIsNotNone(row, f'{table_name} should exist in public schema.')
+                self.assertTrue(row[0], f'{table_name} should have row level security enabled.')
+                self.assertFalse(row[1], f'{table_name} should not force row level security yet.')
+
+    def test_supabase_public_roles_do_not_have_table_privileges(self):
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT rolname FROM pg_roles WHERE rolname IN ('anon', 'authenticated')"
+            )
+            roles = [row[0] for row in cursor.fetchall()]
+
+            for role in roles:
+                for table_name in self.sensitive_tables:
+                    for privilege in ('SELECT', 'INSERT', 'UPDATE', 'DELETE'):
+                        cursor.execute(
+                            "SELECT has_table_privilege(%s, %s, %s)",
+                            [role, f'public.{table_name}', privilege],
+                        )
+                        self.assertFalse(
+                            cursor.fetchone()[0],
+                            f'{role} should not have {privilege} on {table_name}.',
+                        )
+
+    def test_supabase_public_roles_do_not_have_sequence_privileges(self):
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT rolname FROM pg_roles WHERE rolname IN ('anon', 'authenticated')"
+            )
+            roles = [row[0] for row in cursor.fetchall()]
+
+            cursor.execute(
+                """
+                SELECT DISTINCT seq_ns.nspname, seq.relname
+                FROM pg_class seq
+                JOIN pg_namespace seq_ns ON seq_ns.oid = seq.relnamespace
+                JOIN pg_depend dep ON dep.objid = seq.oid
+                JOIN pg_class tbl ON tbl.oid = dep.refobjid
+                JOIN pg_namespace tbl_ns ON tbl_ns.oid = tbl.relnamespace
+                JOIN pg_attribute attr
+                  ON attr.attrelid = tbl.oid
+                 AND attr.attnum = dep.refobjsubid
+                WHERE seq.relkind = 'S'
+                  AND dep.deptype IN ('a', 'i')
+                  AND tbl_ns.nspname = 'public'
+                  AND tbl.relname = ANY (%s)
+                """,
+                [list(self.sensitive_tables)],
+            )
+            sequence_names = [f'{schema}.{name}' for schema, name in cursor.fetchall()]
+
+            for sequence_name in sequence_names:
+                for role in roles:
+                    for privilege in ('USAGE', 'SELECT', 'UPDATE'):
+                        cursor.execute(
+                            "SELECT has_sequence_privilege(%s, %s, %s)",
+                            [role, sequence_name, privilege],
+                        )
+                        self.assertFalse(
+                            cursor.fetchone()[0],
+                            f'{role} should not have {privilege} on {sequence_name}.',
+                        )
+
+
 class LoanBusinessRuleTests(APITestCase):
     loans_url = '/api/payroll/loans/'
 

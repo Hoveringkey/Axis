@@ -47,6 +47,14 @@ postgresql://postgres:postgres@127.0.0.1:54322/postgres
 
 El comando `supabase init` puede crear una carpeta `supabase/` local. En esta rama de documentacion local, no agregues `supabase/` al commit.
 
+## Uso de Supabase en Axis
+
+Supabase local se usa como PostgreSQL administrado para desarrollo. Django/DRF sigue siendo la unica API publica para datos sensibles de nomina.
+
+No uses la anon key de Supabase en el frontend para leer o modificar tablas `payroll_*`. El frontend debe seguir hablando con Django mediante `VITE_API_URL`.
+
+Las migraciones de seguridad activan Row Level Security y revocan privilegios de `anon` y `authenticated` en tablas sensibles de nomina. Esto protege contra acceso directo accidental si se expone una anon key o Supabase REST, pero no reemplaza las reglas de permisos de Django.
+
 ## Backend
 
 Desde la raiz del repo:

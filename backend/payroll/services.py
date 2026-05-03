@@ -14,7 +14,28 @@ class PayrollAlreadyClosedError(Exception):
 
 def get_current_payroll_week():
     """Returns the current ISO-8601 week number."""
-    return datetime.date.today().isocalendar()[1]
+    return get_current_payroll_period()["week"]
+
+
+def get_current_payroll_period(today=None):
+    """Returns the current ISO-8601 payroll period."""
+    today = today or datetime.date.today()
+    iso_year, week, _ = today.isocalendar()
+    return {
+        "iso_year": iso_year,
+        "week": week,
+    }
+
+
+def get_iso_week_date_range(iso_year, week_num):
+    monday = datetime.date.fromisocalendar(iso_year, week_num, 1)
+    sunday = monday + timedelta(days=6)
+    return monday, sunday
+
+
+def get_previous_iso_week_period(today):
+    previous_date = today - timedelta(weeks=1)
+    return get_current_payroll_period(previous_date)
 
 def resolve_payroll_iso_year(week_num, target_year=None):
     if target_year is not None:
@@ -30,17 +51,26 @@ def resolve_payroll_iso_year(week_num, target_year=None):
         return current_year + 1
     return current_year
 
-def get_dashboard_metrics() -> dict:
+def get_dashboard_metrics(today=None) -> dict:
     """
     Dashboard Data Engine: Aggregates scalars, LFT alerts, and graph data 
     for the S&OP/HR Dashboard.
     """
-    today = datetime.date.today()
-    current_week = get_current_payroll_week()
-    
-    # Calculate previous week with year-boundary awareness
-    prev_date = today - timedelta(weeks=1)
-    prev_week = prev_date.isocalendar()[1]
+    today = today or datetime.date.today()
+    current_period = get_current_payroll_period(today)
+    previous_period = get_previous_iso_week_period(today)
+    current_week = current_period["week"]
+    prev_week = previous_period["week"]
+    current_monday, current_sunday = get_iso_week_date_range(
+        current_period["iso_year"],
+        current_week,
+    )
+    previous_monday, previous_sunday = get_iso_week_date_range(
+        previous_period["iso_year"],
+        prev_week,
+    )
+    current_label = f'{current_period["iso_year"]}-S{current_week}'
+    previous_label = f'{previous_period["iso_year"]}-S{prev_week}'
     
     # --- Scalars ---
     active_employees = Employee.objects.filter(is_active=True)
@@ -48,8 +78,14 @@ def get_dashboard_metrics() -> dict:
     turno_a_count = active_employees.filter(puesto='A').count()
     turno_c_count = active_employees.filter(puesto='C').count()
     
-    incidencias_semana_actual = IncidenceRecord.objects.filter(semana_num=current_week).count()
-    incidencias_semana_pasada = IncidenceRecord.objects.filter(semana_num=prev_week).count()
+    incidencias_semana_actual = IncidenceRecord.objects.filter(
+        fecha__gte=current_monday,
+        fecha__lte=current_sunday,
+    ).count()
+    incidencias_semana_pasada = IncidenceRecord.objects.filter(
+        fecha__gte=previous_monday,
+        fecha__lte=previous_sunday,
+    ).count()
     
     # --- Radar LFT: proximos_aniversarios ---
     limit_15_days = today + timedelta(days=15)
@@ -73,32 +109,46 @@ def get_dashboard_metrics() -> dict:
     tendencia_horas_extras = []
     for i in range(3, -1, -1):
         target_date = today - timedelta(weeks=i)
-        w_year, w_num, _ = target_date.isocalendar()
+        w_period = get_current_payroll_period(target_date)
+        w_year = w_period["iso_year"]
+        w_num = w_period["week"]
+        w_monday, w_sunday = get_iso_week_date_range(w_year, w_num)
         total_hx = IncidenceRecord.objects.filter(
-            semana_num=w_num,
+            fecha__gte=w_monday,
+            fecha__lte=w_sunday,
             tipo_incidencia__abreviatura='HX'
         ).aggregate(total=Sum('cantidad'))['total'] or Decimal('0.00')
-        tendencia_horas_extras.append({'semana': w_num, 'horas': float(total_hx)})
+        tendencia_horas_extras.append({
+            'iso_year': w_year,
+            'semana': w_num,
+            'label': f'{w_year}-S{w_num}',
+            'horas': float(total_hx),
+        })
 
     # --- Graph 2: ausentismo_por_turno ---
     # We define negative incidences as 'F' (Falta) or 'PSG' (Permiso sin Goce)
     neg_abrevs = ['F', 'PSG']
     
-    def get_neg_count(week_num, puesto_filter):
+    def get_neg_count(monday, sunday, puesto_filter):
         return IncidenceRecord.objects.filter(
-            semana_num=week_num,
+            fecha__gte=monday,
+            fecha__lte=sunday,
             empleado__puesto=puesto_filter,
             tipo_incidencia__abreviatura__in=neg_abrevs
         ).count()
     
     ausentismo_por_turno = {
         'actual': {
-            'A': get_neg_count(current_week, 'A'),
-            'C': get_neg_count(current_week, 'C')
+            'iso_year': current_period["iso_year"],
+            'week': current_week,
+            'A': get_neg_count(current_monday, current_sunday, 'A'),
+            'C': get_neg_count(current_monday, current_sunday, 'C')
         },
         'pasada': {
-            'A': get_neg_count(prev_week, 'A'),
-            'C': get_neg_count(prev_week, 'C')
+            'iso_year': previous_period["iso_year"],
+            'week': prev_week,
+            'A': get_neg_count(previous_monday, previous_sunday, 'A'),
+            'C': get_neg_count(previous_monday, previous_sunday, 'C')
         }
     }
 
@@ -114,6 +164,18 @@ def get_dashboard_metrics() -> dict:
     ]
 
     return {
+        "period": {
+            "current": {
+                "iso_year": current_period["iso_year"],
+                "week": current_week,
+                "label": current_label,
+            },
+            "previous": {
+                "iso_year": previous_period["iso_year"],
+                "week": prev_week,
+                "label": previous_label,
+            },
+        },
         "scalars": {
             "active_employees_count": active_count,
             "turno_a_count": turno_a_count,

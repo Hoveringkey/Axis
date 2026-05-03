@@ -25,7 +25,7 @@ from .services import (
     calculate_payroll_for_week,
     commit_payroll_for_week,
     get_dashboard_metrics,
-    get_current_payroll_week,
+    get_current_payroll_period,
 )
 
 
@@ -91,7 +91,13 @@ class CurrentWeekView(views.APIView):
     permission_classes = [IsAuthenticated, IsPayrollOperator]
 
     def get(self, request):
-        return Response({'current_week': get_current_payroll_week()}, status=status.HTTP_200_OK)
+        current_period = get_current_payroll_period()
+        current_week = current_period['week']
+        return Response({
+            'current_week': current_week,
+            'current_iso_year': current_period['iso_year'],
+            'label': f"{current_period['iso_year']}-S{current_week}",
+        }, status=status.HTTP_200_OK)
 
 class EmployeeViewSet(viewsets.ModelViewSet):
     serializer_class = EmployeeSerializer

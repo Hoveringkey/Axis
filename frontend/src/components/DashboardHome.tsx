@@ -27,6 +27,10 @@ import {
 import './DashboardHome.css';
 
 interface DashboardData {
+  period: {
+    current: { iso_year: number; week: number; label: string };
+    previous: { iso_year: number; week: number; label: string };
+  };
   scalars: {
     active_employees_count: number;
     turno_a_count: number;
@@ -41,10 +45,10 @@ interface DashboardData {
       exact_date: string;
     }>;
   };
-  graph_overtime: Array<{ semana: number; horas: number }>;
+  graph_overtime: Array<{ iso_year: number; semana: number; label: string; horas: number }>;
   graph_absenteeism: {
-    actual: { A: number; C: number };
-    pasada: { A: number; C: number };
+    actual: { iso_year: number; week: number; A: number; C: number };
+    pasada: { iso_year: number; week: number; A: number; C: number };
   };
   graph_vacation_liability: Array<{ puesto: string; dias_adeudados: number }>;
 }
@@ -53,7 +57,6 @@ const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'
 
 const DashboardHome: React.FC = () => {
   const [data, setData] = useState<DashboardData | null>(null);
-  const [currentWeek, setCurrentWeek] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
 
   const today = new Date().toLocaleDateString('es-MX', {
@@ -66,12 +69,11 @@ const DashboardHome: React.FC = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [dashRes, weekRes] = await Promise.all([
+        const [dashRes] = await Promise.all([
           api.get('/api/payroll/dashboard/'),
           api.get('/api/payroll/current-week/')
         ]);
         setData(dashRes.data);
-        setCurrentWeek(weekRes.data.current_week);
       } catch (err) {
         console.error("Error fetching dashboard data", err);
       } finally {
@@ -93,6 +95,8 @@ const DashboardHome: React.FC = () => {
   if (!data) return <div className="dash-error">Error al cargar datos.</div>;
 
   const incidenceDiff = data.scalars.incidencias_semana_actual - data.scalars.incidencias_semana_pasada;
+  const currentPeriodLabel = data.period.current.label;
+  const previousPeriodLabel = data.period.previous.label;
 
   // Prepare data for Absenteeism Chart
   const absenteeismData = [
@@ -105,7 +109,7 @@ const DashboardHome: React.FC = () => {
       {/* Header */}
       <div className="dash-header-v2">
         <div className="header-left">
-          <p className="header-date">{today} • <span className="header-week">Semana {currentWeek}</span></p>
+          <p className="header-date">{today} • <span className="header-week">{currentPeriodLabel}</span></p>
           <h1>Dashboard Operativo</h1>
         </div>
         <div className="header-right">
@@ -188,7 +192,7 @@ const DashboardHome: React.FC = () => {
               <LineChart data={data.graph_overtime}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
                 <XAxis 
-                  dataKey="semana" 
+                  dataKey="label"
                   tick={{ fontSize: 12 }} 
                   axisLine={false} 
                   tickLine={false}
@@ -219,7 +223,7 @@ const DashboardHome: React.FC = () => {
         <div className="chart-container-v2">
           <div className="chart-header">
             <h3>Ausentismo por Turno</h3>
-            <p>Comparativa S{currentWeek} vs S{currentWeek ? currentWeek - 1 : ''}</p>
+            <p>Comparativa {currentPeriodLabel} vs {previousPeriodLabel}</p>
           </div>
           <div className="chart-body">
             <ResponsiveContainer width="100%" height={250}>

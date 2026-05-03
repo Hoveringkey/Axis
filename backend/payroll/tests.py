@@ -9,7 +9,7 @@ from django.contrib.auth.models import Group, User
 from rest_framework_simplejwt.tokens import RefreshToken
 from .models import Employee, ExtraHourBank, IncidenceCatalog, IncidenceRecord, Loan, PayrollClosure, PayrollSnapshot, Schedule
 from .permissions import FINANCE_ADMIN, HR_CAPTURE
-from .services import calculate_payroll_for_week, safe_replace_year
+from .services import calculate_payroll_for_week, get_dashboard_metrics, safe_replace_year
 
 class SafeReplaceYearTests(SimpleTestCase):
     def test_leap_year_to_non_leap_year(self):
@@ -35,6 +35,76 @@ class SafeReplaceYearTests(SimpleTestCase):
         date_obj = datetime.date(2023, 2, 28)
         result = safe_replace_year(date_obj, 2024)
         self.assertEqual(result, datetime.date(2024, 2, 28))
+
+
+class DashboardMetricsIsoPeriodTests(TestCase):
+    def setUp(self):
+        self.schedule = Schedule.objects.create(time_range="08:00-18:00")
+        self.employee_a = Employee.objects.create(
+            no_nomina="EMP-DASH-A",
+            nombre="Dashboard A",
+            puesto="A",
+            fecha_ingreso=datetime.date(2024, 1, 1),
+            horario_lv=self.schedule,
+        )
+        self.employee_c = Employee.objects.create(
+            no_nomina="EMP-DASH-C",
+            nombre="Dashboard C",
+            puesto="C",
+            fecha_ingreso=datetime.date(2024, 1, 1),
+            horario_lv=self.schedule,
+        )
+        self.absence = IncidenceCatalog.objects.create(tipo="Falta", abreviatura="F")
+        self.overtime = IncidenceCatalog.objects.create(tipo="Hora extra", abreviatura="HX")
+
+    def create_incidence(self, employee, incidence_type, iso_year, week, iso_day, quantity='1.00'):
+        IncidenceRecord.objects.create(
+            fecha=datetime.date.fromisocalendar(iso_year, week, iso_day),
+            semana_num=week,
+            empleado=employee,
+            tipo_incidencia=incidence_type,
+            cantidad=Decimal(quantity),
+        )
+
+    def test_current_week_incidences_do_not_mix_same_week_number_across_years(self):
+        today = datetime.date.fromisocalendar(2026, 11, 3)
+        self.create_incidence(self.employee_a, self.absence, 2026, 11, 1)
+        self.create_incidence(self.employee_a, self.absence, 2025, 11, 1)
+
+        metrics = get_dashboard_metrics(today=today)
+
+        self.assertEqual(metrics['period']['current']['iso_year'], 2026)
+        self.assertEqual(metrics['period']['current']['week'], 11)
+        self.assertEqual(metrics['scalars']['incidencias_semana_actual'], 1)
+        self.assertEqual(metrics['graph_absenteeism']['actual']['A'], 1)
+
+    def test_previous_week_uses_prior_iso_year_at_year_boundary(self):
+        today = datetime.date(2026, 1, 1)
+        self.create_incidence(self.employee_c, self.absence, 2025, 52, 4)
+
+        metrics = get_dashboard_metrics(today=today)
+
+        self.assertEqual(metrics['period']['current']['iso_year'], 2026)
+        self.assertEqual(metrics['period']['current']['week'], 1)
+        self.assertEqual(metrics['period']['previous']['iso_year'], 2025)
+        self.assertEqual(metrics['period']['previous']['week'], 52)
+        self.assertEqual(metrics['scalars']['incidencias_semana_pasada'], 1)
+        self.assertEqual(metrics['graph_absenteeism']['pasada']['C'], 1)
+
+    def test_graph_overtime_uses_iso_week_date_ranges(self):
+        today = datetime.date.fromisocalendar(2026, 11, 3)
+        self.create_incidence(self.employee_a, self.overtime, 2026, 10, 2, '2.50')
+        self.create_incidence(self.employee_a, self.overtime, 2025, 10, 2, '7.00')
+
+        metrics = get_dashboard_metrics(today=today)
+        week_10_point = next(
+            point for point in metrics['graph_overtime']
+            if point['iso_year'] == 2026 and point['semana'] == 10
+        )
+
+        self.assertEqual(week_10_point['label'], '2026-S10')
+        self.assertEqual(week_10_point['horas'], 2.5)
+
 
 class EmployeeBulkCreateTests(APITestCase):
     def setUp(self):

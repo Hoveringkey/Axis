@@ -1,5 +1,6 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Outlet } from 'react-router-dom';
+import ProtectedRoute from './auth/ProtectedRoute';
 
 // Auth
 import Login from './components/Login';
@@ -24,13 +25,6 @@ import PayrollView from './components/Nomina/PayrollView';
 import ExtraHoursView from './components/Nomina/ExtraHoursView';
 import HistoryView from './components/Nomina/HistoryView';
 
-// ── Auth guard ─────────────────────────────────────────────
-const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-  const token = localStorage.getItem('access');
-  if (!token) return <Navigate to="/login" replace />;
-  return <>{children}</>;
-};
-
 // ── Layout shell: Navbar + page content ────────────────────
 const AppLayout: React.FC = () => (
   <>
@@ -49,7 +43,7 @@ const App: React.FC = () => (
       {/* Protected — all share the Navbar via AppLayout */}
       <Route
         element={
-          <ProtectedRoute>
+          <ProtectedRoute requiredPermission="can_access_payroll">
             <AppLayout />
           </ProtectedRoute>
         }

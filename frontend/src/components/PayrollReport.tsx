@@ -14,6 +14,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import type { ColDef } from 'ag-grid-community';
 import api from '../api/axios';
+import { useAuth } from '../auth/AuthContext';
 import './modules.css';
 import 'ag-grid-community/styles/ag-grid.css';
 import 'ag-grid-community/styles/ag-theme-alpine.css';
@@ -92,6 +93,7 @@ const columnDefs = buildColumnDefs();
 // ── Component ─────────────────────────────────────────────────────────────────
 
 const PayrollReport: React.FC = () => {
+  const { hasPermission } = useAuth();
   const [calcWeekNum, setCalcWeekNum]   = useState('');
   const [calcResults, setCalcResults]   = useState<CalcRow[]>([]);
   const [calcError, setCalcError]       = useState<string | null>(null);
@@ -99,6 +101,7 @@ const PayrollReport: React.FC = () => {
   const [isClosing, setIsClosing]       = useState(false);
   const [isClosed, setIsClosed]         = useState(false);
   const [quickFilterText, setQuickFilterText] = useState('');
+  const canManagePayroll = hasPermission('can_manage_payroll');
 
   useEffect(() => {
     // Auto-fetch current week on mount to streamline UX
@@ -135,6 +138,10 @@ const PayrollReport: React.FC = () => {
 
   const handleClosePayroll = async () => {
     if (!calcWeekNum) return;
+    if (!canManagePayroll) {
+      setCalcError('No tienes permiso para cerrar la nómina.');
+      return;
+    }
     setIsClosing(true);
     setCalcError(null);
     try {
@@ -238,31 +245,33 @@ const PayrollReport: React.FC = () => {
           </button>
 
           {/* Close Payroll */}
-          <button
-            id="payroll-close-btn"
-            onClick={handleClosePayroll}
-            disabled={isClosing || calcResults.length === 0 || isClosed || isCalculating}
-            title={calcResults.length === 0 ? 'Ejecuta el reporte primero' : ''}
-            style={{
-              padding: '0.45rem 1.25rem', borderRadius: '8px',
-              background: isClosed ? 'rgba(16,185,129,0.2)' : 'var(--accent-primary)',
-              color: isClosed ? 'var(--color-emerald, #10b981)' : 'var(--color-white)',
-              fontWeight: 600, fontSize: '0.875rem',
-              cursor: (isClosing || calcResults.length === 0 || isClosed || isCalculating)
-                ? 'not-allowed'
-                : 'pointer',
-              opacity: (calcResults.length === 0 && !isClosed) ? 0.5 : 1,
-              transition: 'all 0.2s ease', boxShadow: '0 2px 8px var(--accent-shadow)',
-              border: isClosed ? '1px solid rgba(16,185,129,0.4)' : 'none',
-            }}>
-            {isClosing ? (
-              <><CircleNotch className="animate-spin" size={16} /> Cerrando…</>
-            ) : isClosed ? (
-              <><CheckCircle weight="fill" size={16} /> Nómina Cerrada</>
-            ) : (
-              'Cerrar Nómina'
-            )}
-          </button>
+          {canManagePayroll && (
+            <button
+              id="payroll-close-btn"
+              onClick={handleClosePayroll}
+              disabled={isClosing || calcResults.length === 0 || isClosed || isCalculating}
+              title={calcResults.length === 0 ? 'Ejecuta el reporte primero' : ''}
+              style={{
+                padding: '0.45rem 1.25rem', borderRadius: '8px',
+                background: isClosed ? 'rgba(16,185,129,0.2)' : 'var(--accent-primary)',
+                color: isClosed ? 'var(--color-emerald, #10b981)' : 'var(--color-white)',
+                fontWeight: 600, fontSize: '0.875rem',
+                cursor: (isClosing || calcResults.length === 0 || isClosed || isCalculating)
+                  ? 'not-allowed'
+                  : 'pointer',
+                opacity: (calcResults.length === 0 && !isClosed) ? 0.5 : 1,
+                transition: 'all 0.2s ease', boxShadow: '0 2px 8px var(--accent-shadow)',
+                border: isClosed ? '1px solid rgba(16,185,129,0.4)' : 'none',
+              }}>
+              {isClosing ? (
+                <><CircleNotch className="animate-spin" size={16} /> Cerrando…</>
+              ) : isClosed ? (
+                <><CheckCircle weight="fill" size={16} /> Nómina Cerrada</>
+              ) : (
+                'Cerrar Nómina'
+              )}
+            </button>
+          )}
         </div>
       </div>
 

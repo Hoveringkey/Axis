@@ -221,6 +221,64 @@ class PayrollPermissionTests(APITestCase):
         self.assertNotEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
 
+class CurrentUserViewTests(APITestCase):
+    me_url = '/api/auth/me/'
+
+    def setUp(self):
+        self.hr_group = Group.objects.get_or_create(name=HR_CAPTURE)[0]
+        self.finance_group = Group.objects.get_or_create(name=FINANCE_ADMIN)[0]
+
+    def test_unauthenticated_user_gets_401(self):
+        response = self.client.get(self.me_url)
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_hr_capture_permissions(self):
+        user = User.objects.create_user(username='hr_me', password='testpassword')
+        user.groups.add(self.hr_group)
+        self.client.force_authenticate(user=user)
+
+        response = self.client.get(self.me_url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['username'], 'hr_me')
+        self.assertFalse(response.data['is_superuser'])
+        self.assertEqual(response.data['groups'], [HR_CAPTURE])
+        self.assertTrue(response.data['permissions']['can_access_payroll'])
+        self.assertFalse(response.data['permissions']['can_manage_payroll'])
+        self.assertTrue(response.data['permissions']['can_capture_hr'])
+
+    def test_finance_admin_permissions(self):
+        user = User.objects.create_user(username='finance_me', password='testpassword')
+        user.groups.add(self.finance_group)
+        self.client.force_authenticate(user=user)
+
+        response = self.client.get(self.me_url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['groups'], [FINANCE_ADMIN])
+        self.assertTrue(response.data['permissions']['can_access_payroll'])
+        self.assertTrue(response.data['permissions']['can_manage_payroll'])
+        self.assertFalse(response.data['permissions']['can_capture_hr'])
+
+    def test_superuser_permissions(self):
+        user = User.objects.create_superuser(
+            username='super_me',
+            email='super@example.com',
+            password='testpassword',
+        )
+        self.client.force_authenticate(user=user)
+
+        response = self.client.get(self.me_url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['username'], 'super_me')
+        self.assertTrue(response.data['is_superuser'])
+        self.assertTrue(response.data['permissions']['can_access_payroll'])
+        self.assertTrue(response.data['permissions']['can_manage_payroll'])
+        self.assertTrue(response.data['permissions']['can_capture_hr'])
+
+
 class PayrollPreviewCommitTests(APITestCase):
     preview_url = '/api/payroll/preview/'
     commit_url = '/api/payroll/commit/'

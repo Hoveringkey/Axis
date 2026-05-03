@@ -69,10 +69,7 @@ const DashboardHome: React.FC = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [dashRes] = await Promise.all([
-          api.get('/api/payroll/dashboard/'),
-          api.get('/api/payroll/current-week/')
-        ]);
+        const dashRes = await api.get('/api/payroll/dashboard/');
         setData(dashRes.data);
       } catch (err) {
         console.error("Error fetching dashboard data", err);

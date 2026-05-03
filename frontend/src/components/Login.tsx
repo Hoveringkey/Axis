@@ -1,8 +1,11 @@
 import React, { useState } from 'react';
-import api from '../api/axios';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../auth/AuthContext';
 import './Login.css';
 
 const Login: React.FC = () => {
+  const { login } = useAuth();
+  const navigate = useNavigate();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -14,22 +17,12 @@ const Login: React.FC = () => {
     setIsLoading(true);
 
     try {
-      const response = await api.post('/api/token/', {
-        username,
-        password,
-      });
-
-      const { access, refresh } = response.data;
-
-      // Store tokens
-      localStorage.setItem('access', access);
-      localStorage.setItem('refresh', refresh);
-
-      // Redirect or update app state here
-      window.location.href = '/'; 
-    } catch (err: any) {
+      await login(username, password);
+      navigate('/', { replace: true });
+    } catch (err: unknown) {
+      const loginError = err as { response?: { data?: { detail?: string } } };
       setError(
-        err.response?.data?.detail || 
+        loginError.response?.data?.detail ||
         'Login failed. Please check your credentials.'
       );
     } finally {

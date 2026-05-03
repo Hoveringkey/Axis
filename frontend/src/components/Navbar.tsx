@@ -16,6 +16,7 @@ import {
   CaretDown,
   SignOut
 } from '@phosphor-icons/react';
+import { useAuth } from '../auth/AuthContext';
 import './Navbar.css';
 
 interface DropdownItem {
@@ -59,6 +60,7 @@ const NAV_SECTIONS: NavSection[] = [
 ];
 
 const Navbar: React.FC = () => {
+  const { logout } = useAuth();
   const [openSection, setOpenSection] = useState<string | null>(null);
   const navRef = useRef<HTMLElement>(null);
   const navigate = useNavigate();
@@ -75,12 +77,15 @@ const Navbar: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    setOpenSection(null);
+    const timeoutId = window.setTimeout(() => {
+      setOpenSection(null);
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
   }, [location.pathname]);
 
   const handleLogout = () => {
-    localStorage.removeItem('access');
-    localStorage.removeItem('refresh');
+    logout();
     navigate('/login');
   };
 

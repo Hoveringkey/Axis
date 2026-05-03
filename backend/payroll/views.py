@@ -4,7 +4,14 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from .models import Employee, IncidenceCatalog, IncidenceRecord, Loan, ExtraHourBank, PayrollSnapshot
-from .permissions import IsFinanceAdmin, IsPayrollOperator
+from .permissions import (
+    IsFinanceAdmin,
+    IsPayrollOperator,
+    is_finance_admin,
+    is_hr_capture,
+    is_payroll_operator,
+    is_superuser,
+)
 from .serializers import (
     EmployeeSerializer,
     IncidenceCatalogSerializer,
@@ -50,6 +57,25 @@ def _parse_optional_year(raw_year):
         return None, {'error': 'year must be between 1 and 9999'}
 
     return target_year, None
+
+
+class CurrentUserView(views.APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        groups = list(user.groups.order_by('name').values_list('name', flat=True))
+
+        return Response({
+            'username': user.username,
+            'is_superuser': user.is_superuser,
+            'groups': groups,
+            'permissions': {
+                'can_access_payroll': is_payroll_operator(user),
+                'can_manage_payroll': is_superuser(user) or is_finance_admin(user),
+                'can_capture_hr': is_superuser(user) or is_hr_capture(user),
+            },
+        }, status=status.HTTP_200_OK)
 
 
 class DashboardMetricsView(views.APIView):

@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { AgGridReact } from 'ag-grid-react';
 import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
 import type { ColDef } from 'ag-grid-community';
@@ -7,6 +8,7 @@ import IncidenceForm from './IncidenceForm';
 import LoanForm from './LoanForm';
 import BulkDataMapper from './BulkDataMapper';
 import PayrollReport from './PayrollReport';
+import { useAuth } from '../auth/AuthContext';
 
 import 'ag-grid-community/styles/ag-grid.css';
 import 'ag-grid-community/styles/ag-theme-alpine.css';
@@ -15,37 +17,43 @@ import './Dashboard.css';
 ModuleRegistry.registerModules([AllCommunityModule]);
 
 const Dashboard: React.FC = () => {
+  const { logout } = useAuth();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'directory' | 'incidence' | 'loan' | 'calculate' | 'import'>('directory');
 
   // Directory State
   const [employees, setEmployees] = useState([]);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (activeTab === 'directory') {
-      fetchEmployees();
-    }
-  }, [activeTab]);
+  const handleLogout = useCallback(() => {
+    logout();
+    navigate('/login');
+  }, [logout, navigate]);
 
-  const fetchEmployees = async () => {
+  const fetchEmployees = useCallback(async () => {
     try {
       const response = await api.get('/api/payroll/employees/');
       setEmployees(response.data);
       setError(null);
-    } catch (err: any) {
-      if (err.response && err.response.status === 401) {
+    } catch (err: unknown) {
+      const fetchError = err as { response?: { status?: number } };
+      if (fetchError.response?.status === 401) {
         handleLogout();
       } else {
         setError('Failed to fetch employees. Please try again.');
       }
     }
-  };
+  }, [handleLogout]);
 
-  const handleLogout = () => {
-    localStorage.removeItem('access');
-    localStorage.removeItem('refresh');
-    window.location.href = '/login';
-  };
+  useEffect(() => {
+    if (activeTab !== 'directory') return;
+
+    const timeoutId = window.setTimeout(() => {
+      void fetchEmployees();
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [activeTab, fetchEmployees]);
 
   const directoryColumnDefs: ColDef[] = [
     { field: 'no_nomina', headerName: 'No. Nomina', sortable: true, filter: true },

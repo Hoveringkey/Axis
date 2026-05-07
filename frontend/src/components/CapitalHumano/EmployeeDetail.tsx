@@ -9,8 +9,11 @@ import {
   FloppyDisk, 
   ArrowsLeftRight, 
   CheckCircle, 
-  CaretLeft
+  CaretLeft,
+  MagnifyingGlass,
+  X
 } from '@phosphor-icons/react';
+import { Button, ErrorState, GlassCard, Input, LoadingState, PageShell, StatusBadge } from '../ui';
 import './CapitalHumano.css';
 
 type ActiveTab = 'datos' | 'vacaciones';
@@ -59,6 +62,8 @@ const EmployeeDetail: React.FC = () => {
     status: null,
     loading: false,
   });
+  const [swapSearchTerm, setSwapSearchTerm] = useState('');
+  const [isSwapSearchOpen, setIsSwapSearchOpen] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -154,228 +159,353 @@ const EmployeeDetail: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="ch-page" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 'calc(100vh - 60px)' }}>
-      <div className="kpi-spinner" />
-    </div>
+      <PageShell maxWidth="1120px">
+        <LoadingState message="Cargando información del empleado..." />
+      </PageShell>
     );
   }
 
   if (fetchError || !employee) {
     return (
-      <div className="ch-page">
-        <div className="ch-status error">{fetchError ?? 'Empleado no encontrado.'}</div>
-        <button className="ch-btn ch-btn-ghost" onClick={() => navigate('/capital-humano')}>
-          ← Volver al Directorio
-        </button>
-      </div>
+      <PageShell maxWidth="1120px">
+        <ErrorState
+          title="No se pudo cargar el empleado"
+          message={fetchError ?? 'Empleado no encontrado.'}
+          action={
+            <Button variant="secondary" onClick={() => navigate('/capital-humano')}>
+              <CaretLeft size={16} weight="bold" /> Volver al Directorio
+            </Button>
+          }
+        />
+      </PageShell>
     );
   }
 
   const otherEmployees = allEmployees.filter(e => e.no_nomina !== id);
+  const selectedSwapEmployee = otherEmployees.find(emp => emp.no_nomina === swap.targetNomina);
+  const normalizedSwapSearch = swapSearchTerm.trim().toLowerCase();
+  const filteredSwapEmployees = (normalizedSwapSearch
+    ? otherEmployees.filter(emp =>
+        emp.no_nomina.toLowerCase().includes(normalizedSwapSearch) ||
+        emp.nombre.toLowerCase().includes(normalizedSwapSearch)
+      )
+    : otherEmployees
+  ).slice(0, 6);
 
   return (
-    <div className="ch-page">
-      {/* Header */}
-      <div className="ch-page-header">
-        <div>
-          <button className="ch-back-btn" onClick={() => navigate('/capital-humano')}>
-            <CaretLeft size={16} weight="bold" /> Directorio
-          </button>
-          <h1 style={{ marginTop: '0.625rem' }}>{employee.nombre}</h1>
-          <p>No. Nómina: {employee.no_nomina} · {employee.puesto}</p>
-        </div>
-        <span className={`badge ${employee.is_active ? 'badge-active' : 'badge-inactive'}`}>
-          {employee.is_active ? 'Activo' : 'Inactivo'}
-        </span>
-      </div>
+    <PageShell maxWidth="1120px">
+      <div className="employee-detail-page">
+        <GlassCard variant="strong" padding="lg" className="employee-detail-header">
+          <div className="employee-detail-header__main">
+            <Button
+              className="employee-detail-back"
+              size="sm"
+              variant="ghost"
+              onClick={() => navigate('/capital-humano')}
+            >
+              <CaretLeft size={16} weight="bold" /> Directorio
+            </Button>
+            <div className="employee-detail-title-group">
+              <div className="employee-detail-icon">
+                <IdentificationCard size={28} weight="duotone" />
+              </div>
+              <div>
+                <p className="employee-detail-eyebrow">Detalle de empleado</p>
+                <h1>{employee.nombre}</h1>
+                <div className="employee-detail-meta">
+                  <span>No. Nómina: {employee.no_nomina}</span>
+                  <span>{employee.puesto}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <StatusBadge variant={employee.is_active ? 'success' : 'neutral'}>
+            {employee.is_active ? 'Activo' : 'Inactivo'}
+          </StatusBadge>
+        </GlassCard>
 
-      <div className="ch-card">
-        {/* Tabs */}
-        <div className="ch-tabs">
-          <button
-            id="tab-datos"
-            className={`ch-tab${activeTab === 'datos' ? ' active' : ''}`}
-            onClick={() => setActiveTab('datos')}
-          >
-            <IdentificationCard size={18} weight={activeTab === 'datos' ? 'fill' : 'regular'} /> Datos
-          </button>
-          <button
-            id="tab-vacaciones"
-            className={`ch-tab${activeTab === 'vacaciones' ? ' active' : ''}`}
-            onClick={() => setActiveTab('vacaciones')}
-          >
-            <Calendar size={18} weight={activeTab === 'vacaciones' ? 'fill' : 'regular'} /> Vacaciones
-          </button>
-        </div>
+        <GlassCard className="employee-detail-card" padding="none">
+          <div className="employee-detail-tabs" role="tablist" aria-label="Detalle de empleado">
+            <button
+              id="tab-datos"
+              type="button"
+              role="tab"
+              aria-selected={activeTab === 'datos'}
+              className={`employee-detail-tab${activeTab === 'datos' ? ' active' : ''}`}
+              onClick={() => setActiveTab('datos')}
+            >
+              <IdentificationCard size={18} weight={activeTab === 'datos' ? 'fill' : 'regular'} /> Datos
+            </button>
+            <button
+              id="tab-vacaciones"
+              type="button"
+              role="tab"
+              aria-selected={activeTab === 'vacaciones'}
+              className={`employee-detail-tab${activeTab === 'vacaciones' ? ' active' : ''}`}
+              onClick={() => setActiveTab('vacaciones')}
+            >
+              <Calendar size={18} weight={activeTab === 'vacaciones' ? 'fill' : 'regular'} /> Vacaciones
+            </button>
+          </div>
 
-        <div className="ch-tab-content">
-          {/* ── DATOS TAB ── */}
-          {activeTab === 'datos' && (
-            <>
-              {saveStatus && (
-                <div className={`ch-status ${saveStatus.type}`}>{saveStatus.message}</div>
-              )}
+          <div className="employee-detail-tab-content">
+            {activeTab === 'datos' && (
+              <>
+                {saveStatus && (
+                  <div className={`employee-detail-status employee-detail-status--${saveStatus.type}`}>
+                    {saveStatus.message}
+                  </div>
+                )}
 
-              <form id="employee-edit-form" onSubmit={handleSave} className="ch-form">
-                <div className="ch-field">
-                  <label htmlFor="field-nombre">Nombre Completo</label>
-                  <input
+                <form id="employee-edit-form" onSubmit={handleSave} className="employee-detail-form">
+                  <Input
                     id="field-nombre"
+                    required
                     type="text"
+                    label="Nombre completo"
                     value={nombre}
                     onChange={e => setNombre(e.target.value)}
-                    required
                   />
-                </div>
 
-                <div className="ch-field">
-                  <label htmlFor="field-puesto">Puesto</label>
-                  <input
+                  <Input
                     id="field-puesto"
+                    required
                     type="text"
+                    label="Puesto"
                     value={puesto}
                     onChange={e => setPuesto(e.target.value)}
-                    required
                   />
-                </div>
 
-                <div className="ch-field">
-                  <label htmlFor="field-fecha-ingreso">Fecha de Ingreso</label>
-                  <input
+                  <Input
+                    className="employee-detail-date-input"
                     id="field-fecha-ingreso"
                     type="date"
+                    label="Fecha de ingreso"
                     value={fechaIngreso}
                     onChange={e => setFechaIngreso(e.target.value)}
                   />
-                </div>
 
-                <div className="ch-field" style={{ justifyContent: 'flex-end', paddingBottom: '0.5rem' }}>
-                  <div className="ch-checkbox-row">
-                    <input
-                      type="checkbox"
-                      id="field-is-active"
-                      checked={isActive}
-                      onChange={e => setIsActive(e.target.checked)}
-                    />
-                    <label htmlFor="field-is-active">Empleado activo</label>
+                  <div className="employee-detail-active-field">
+                    <span className="axis-input__label">Estado</span>
+                    <label className="employee-detail-checkbox" htmlFor="field-is-active">
+                      <input
+                        type="checkbox"
+                        id="field-is-active"
+                        checked={isActive}
+                        onChange={e => setIsActive(e.target.checked)}
+                      />
+                      <span className="employee-detail-checkbox__control" aria-hidden="true" />
+                      <span>Empleado activo</span>
+                    </label>
                   </div>
-                </div>
 
-                <div className="ch-field">
-                  <label htmlFor="field-horario-lv">Horario L-V</label>
-                  <input
+                  <Input
                     id="field-horario-lv"
                     type="text"
+                    label="Horario L-V"
                     value={horarioLv}
                     onChange={e => setHorarioLv(e.target.value)}
                     placeholder="ej. 08:00-17:00"
                   />
-                </div>
 
-                <div className="ch-field">
-                  <label htmlFor="field-horario-s">Horario Sábado</label>
-                  <input
+                  <Input
                     id="field-horario-s"
                     type="text"
+                    label="Horario sábado"
                     value={horarioS}
                     onChange={e => setHorarioS(e.target.value)}
                     placeholder="ej. 08:00-13:00 (vacío si no aplica)"
                   />
-                </div>
 
-                <div className="ch-form-full ch-actions">
-                  <button
-                    id="btn-save-employee"
-                    type="submit"
-                    className="ch-btn ch-btn-primary"
-                    disabled={isSaving}
-                  >
-                    {isSaving ? (
-                      <><CircleNotch className="animate-spin" size={18} /> Guardando…</>
-                    ) : (
-                      <><FloppyDisk weight="fill" size={18} /> Guardar Cambios</>
-                    )}
-                  </button>
+                  <div className="employee-detail-actions">
+                    <Button
+                      id="btn-save-employee"
+                      type="submit"
+                      disabled={isSaving}
+                    >
+                      {isSaving ? (
+                        <><CircleNotch className="animate-spin" size={18} /> Guardando...</>
+                      ) : (
+                        <><FloppyDisk weight="fill" size={18} /> Guardar Cambios</>
+                      )}
+                    </Button>
 
-                  <button
-                    id="btn-swap-shifts"
-                    type="button"
-                    className="ch-btn ch-btn-swap"
-                    onClick={() => setSwap(s => ({ ...s, open: true, status: null, targetNomina: '' }))}
-                  >
-                    <ArrowsLeftRight weight="bold" size={18} /> Intercambiar Turno
-                  </button>
-                </div>
-              </form>
-            </>
-          )}
-
-          {/* ── VACACIONES TAB ── */}
-          {activeTab === 'vacaciones' && (
-            <VacationStatus noNomina={employee.no_nomina} employeeName={employee.nombre} />
-          )}
-        </div>
-      </div>
-
-      {/* ── SWAP MODAL ── */}
-      {swap.open && (
-        <div className="ch-modal-overlay" onClick={() => setSwap(s => ({ ...s, open: false }))}>
-          <div className="ch-modal" onClick={e => e.stopPropagation()}>
-            <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <ArrowsLeftRight weight="duotone" size={24} color="var(--accent-primary)" />
-              Intercambiar Turno
-            </h3>
-            <p>
-              Selecciona el empleado con quien <strong>{employee.nombre}</strong> intercambiará
-              sus horarios (L-V y Sábado).
-            </p>
-
-            {swap.status && (
-              <div className={`ch-status ${swap.status.type}`} style={{ marginBottom: '1rem' }}>
-                {swap.status.message}
-              </div>
+                    <Button
+                      id="btn-swap-shifts"
+                      type="button"
+                      variant="secondary"
+                      onClick={() => {
+                        setSwapSearchTerm('');
+                        setIsSwapSearchOpen(false);
+                        setSwap(s => ({ ...s, open: true, status: null, targetNomina: '' }));
+                      }}
+                    >
+                      <ArrowsLeftRight weight="bold" size={18} /> Intercambiar Turno
+                    </Button>
+                  </div>
+                </form>
+              </>
             )}
 
-            <div className="ch-field" style={{ marginBottom: '1.5rem' }}>
-              <label htmlFor="swap-target">Empleado Destino</label>
-              <select
-                id="swap-target"
-                value={swap.targetNomina}
-                onChange={e => setSwap(s => ({ ...s, targetNomina: e.target.value }))}
-              >
-                <option value="">— Seleccionar empleado —</option>
-                {otherEmployees.map(emp => (
-                  <option key={emp.no_nomina} value={emp.no_nomina}>
-                    {emp.no_nomina} — {emp.nombre}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="ch-actions">
-              <button
-                id="btn-confirm-swap"
-                className="ch-btn ch-btn-primary"
-                onClick={handleSwapSubmit}
-                disabled={!swap.targetNomina || swap.loading}
-              >
-                {swap.loading ? (
-                  <><CircleNotch className="animate-spin" size={18} /> Procesando…</>
-                ) : (
-                  <><CheckCircle weight="fill" size={18} /> Confirmar Intercambio</>
-                )}
-              </button>
-              <button
-                className="ch-btn ch-btn-ghost"
-                onClick={() => setSwap(s => ({ ...s, open: false }))}
-              >
-                Cancelar
-              </button>
-            </div>
+            {activeTab === 'vacaciones' && (
+              <div className="employee-detail-vacations">
+                <VacationStatus noNomina={employee.no_nomina} employeeName={employee.nombre} />
+              </div>
+            )}
           </div>
-        </div>
-      )}
-    </div>
+        </GlassCard>
+
+        {swap.open && (
+          <div
+            className="ch-modal-overlay employee-swap-modal-overlay"
+            onClick={() => {
+              setSwapSearchTerm('');
+              setIsSwapSearchOpen(false);
+              setSwap(s => ({ ...s, open: false }));
+            }}
+          >
+            <GlassCard
+              className="employee-swap-modal"
+              padding="lg"
+              variant="strong"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="employee-swap-modal__header">
+                <div className="employee-swap-modal__title">
+                  <span className="employee-swap-modal__icon">
+                    <ArrowsLeftRight weight="duotone" size={24} />
+                  </span>
+                  <div>
+                    <h3>Intercambiar Turno</h3>
+                    <p>Selecciona el empleado destino para intercambiar horarios.</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="employee-swap-modal__close"
+                  aria-label="Cerrar intercambio de turno"
+                  onClick={() => {
+                    setSwapSearchTerm('');
+                    setIsSwapSearchOpen(false);
+                    setSwap(s => ({ ...s, open: false }));
+                  }}
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <p className="employee-swap-modal__copy">
+                <strong>{employee.nombre}</strong> intercambiará sus horarios L-V y Sábado con el
+                empleado seleccionado.
+              </p>
+
+              {swap.status && (
+                <div className={`employee-detail-status employee-detail-status--${swap.status.type}`}>
+                  {swap.status.message}
+                </div>
+              )}
+
+              <div className="employee-swap-search">
+                <span className="axis-input__label">Empleado destino</span>
+                {!selectedSwapEmployee && (
+                  <div className="employee-swap-search__input-wrap">
+                    <MagnifyingGlass size={16} weight="bold" />
+                    <input
+                      id="swap-target"
+                      className="employee-swap-search__input"
+                      type="text"
+                      placeholder="Buscar por nómina o nombre..."
+                      value={swapSearchTerm}
+                      onChange={e => {
+                        setSwapSearchTerm(e.target.value);
+                        setIsSwapSearchOpen(true);
+                      }}
+                      onFocus={() => setIsSwapSearchOpen(true)}
+                    />
+                  </div>
+                )}
+
+                {!selectedSwapEmployee && isSwapSearchOpen && (
+                  <div className="employee-swap-search__results">
+                    {filteredSwapEmployees.length > 0 ? (
+                      filteredSwapEmployees.map(emp => {
+                      return (
+                        <button
+                          key={emp.no_nomina}
+                          type="button"
+                          className="employee-swap-search__result"
+                          onClick={() => {
+                            setSwap(s => ({ ...s, targetNomina: emp.no_nomina }));
+                            setSwapSearchTerm(`${emp.no_nomina} - ${emp.nombre}`);
+                            setIsSwapSearchOpen(false);
+                          }}
+                        >
+                          <span className="employee-swap-search__result-main">
+                            <span>{emp.no_nomina}</span>
+                            <span>{emp.nombre}</span>
+                          </span>
+                          {emp.puesto && (
+                            <span className="employee-swap-search__result-meta">{emp.puesto}</span>
+                          )}
+                        </button>
+                      );
+                      })
+                    ) : (
+                      <div className="employee-swap-search__empty">No se encontraron empleados.</div>
+                    )}
+                  </div>
+                )}
+
+                {selectedSwapEmployee && (
+                  <div className="employee-swap-search__selected">
+                    <div>
+                      <span>Empleado seleccionado</span>
+                      <strong>{selectedSwapEmployee.no_nomina} - {selectedSwapEmployee.nombre}</strong>
+                    </div>
+                    <button
+                      type="button"
+                      className="employee-swap-search__clear"
+                      aria-label="Limpiar empleado seleccionado"
+                      onClick={() => {
+                        setSwap(s => ({ ...s, targetNomina: '' }));
+                        setSwapSearchTerm('');
+                        setIsSwapSearchOpen(false);
+                      }}
+                    >
+                      <X size={16} weight="bold" />
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <div className="employee-swap-modal__actions">
+                <Button
+                  id="btn-confirm-swap"
+                  onClick={handleSwapSubmit}
+                  disabled={!swap.targetNomina || swap.loading}
+                >
+                  {swap.loading ? (
+                    <><CircleNotch className="animate-spin" size={18} /> Procesando...</>
+                  ) : (
+                    <><CheckCircle weight="fill" size={18} /> Confirmar Intercambio</>
+                  )}
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    setSwapSearchTerm('');
+                    setIsSwapSearchOpen(false);
+                    setSwap(s => ({ ...s, open: false }));
+                  }}
+                >
+                  Cancelar
+                </Button>
+              </div>
+            </GlassCard>
+          </div>
+        )}
+      </div>
+    </PageShell>
   );
 };
 

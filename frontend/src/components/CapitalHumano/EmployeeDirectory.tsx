@@ -16,7 +16,7 @@ import { AgGridReact } from 'ag-grid-react';
 import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
 import type { ColDef, ICellRendererParams, GridReadyEvent } from 'ag-grid-community';
 import api from '../../api/axios';
-import QuickSearch from '../QuickSearch';
+import { Button, GlassCard, Input, PageShell } from '../ui';
 import './CapitalHumano.css';
 
 import 'ag-grid-community/styles/ag-grid.css';
@@ -45,6 +45,8 @@ const EmployeeDirectory: React.FC = () => {
   const [isAltaModalOpen, setIsAltaModalOpen] = useState(false);
   const [isBajaModalOpen, setIsBajaModalOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [altaError, setAltaError] = useState<string | null>(null);
+  const [bajaError, setBajaError] = useState<string | null>(null);
 
   // Form States (Alta)
   const [altaForm, setAltaForm] = useState({
@@ -100,9 +102,11 @@ const EmployeeDirectory: React.FC = () => {
   const handleAltaSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
+    setAltaError(null);
     try {
       await api.post('/api/payroll/employees/alta/', altaForm);
       setIsAltaModalOpen(false);
+      setAltaError(null);
       setAltaForm({
         no_nomina: '',
         nombre: '',
@@ -113,7 +117,7 @@ const EmployeeDirectory: React.FC = () => {
       });
       fetchEmployees();
     } catch (err: any) {
-      alert(err.response?.data?.error || 'Error al crear empleado');
+      setAltaError(err.response?.data?.error || 'Error al crear empleado');
     } finally {
       setSubmitting(false);
     }
@@ -123,16 +127,18 @@ const EmployeeDirectory: React.FC = () => {
     e.preventDefault();
     if (!bajaForm.no_nomina) return;
     setSubmitting(true);
+    setBajaError(null);
     try {
       await api.post(`/api/payroll/employees/${bajaForm.no_nomina}/baja/`, {
         fecha_baja: bajaForm.fecha_baja,
         motivo_baja: bajaForm.motivo_baja
       });
       setIsBajaModalOpen(false);
+      setBajaError(null);
       setBajaForm({ no_nomina: '', fecha_baja: new Date().toISOString().split('T')[0], motivo_baja: '' });
       fetchEmployees();
     } catch (err: any) {
-      alert(err.response?.data?.error || 'Error al dar de baja');
+      setBajaError(err.response?.data?.error || 'Error al dar de baja');
     } finally {
       setSubmitting(false);
     }
@@ -221,138 +227,162 @@ const EmployeeDirectory: React.FC = () => {
 
   return (
     <>
-      <div className="ch-page">
-      <div className="ch-page-header">
-        <div>
-          <h1 style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
-            <Users size={32} weight="duotone" color="var(--accent-primary)" />
-            Directorio de Empleados
-          </h1>
-          <p>
-            {loading
-              ? 'Cargando…'
-              : `${employees.filter(e => e.is_active).length} activos · ${employees.length} total`}
-          </p>
-        </div>
-        <div className="ch-actions">
-          <QuickSearch value={quickFilterText} onChange={setQuickFilterText} />
-          <button
-            className="ch-btn ch-btn-primary"
-            onClick={() => setIsAltaModalOpen(true)}
-          >
-            <UserPlus size={18} weight="bold" /> Alta de Empleado
-          </button>
-          <button
-            className="ch-btn ch-btn-ghost"
-            style={{ color: 'var(--error-text)', borderColor: 'var(--error-border)' }}
-            onClick={() => setIsBajaModalOpen(true)}
-          >
-            <UserMinus size={18} weight="bold" /> Baja de Empleado
-          </button>
-          <button
-            id="btn-reload-directory"
-            className="ch-btn ch-btn-ghost"
-            onClick={fetchEmployees}
-          >
-            <ArrowClockwise weight="bold" /> Actualizar
-          </button>
-        </div>
-      </div>
+      <PageShell>
+        <div className="employee-directory-page">
+          <GlassCard variant="strong" padding="lg" className="employee-directory-header">
+            <div className="employee-directory-title-group">
+              <div className="employee-directory-icon">
+                <Users size={28} weight="duotone" />
+              </div>
+              <div>
+                <h1>Directorio de Empleados</h1>
+                <p>
+                  {loading
+                    ? 'Cargando…'
+                    : `${employees.filter(e => e.is_active).length} activos · ${employees.length} total`}
+                </p>
+              </div>
+            </div>
+            <div className="employee-directory-actions">
+              <label className="employee-directory-search">
+                <MagnifyingGlass size={16} />
+                <input
+                  type="text"
+                  placeholder="Buscar empleado"
+                  value={quickFilterText}
+                  onChange={(e) => setQuickFilterText(e.target.value)}
+                />
+              </label>
+              <Button
+                onClick={() => {
+                  setAltaError(null);
+                  setIsAltaModalOpen(true);
+                }}
+              >
+                <UserPlus size={18} weight="bold" /> Alta de Empleado
+              </Button>
+              <Button
+                variant="danger"
+                onClick={() => {
+                  setBajaError(null);
+                  setIsBajaModalOpen(true);
+                }}
+              >
+                <UserMinus size={18} weight="bold" /> Baja de Empleado
+              </Button>
+              <Button
+                id="btn-reload-directory"
+                variant="secondary"
+                onClick={fetchEmployees}
+              >
+                <ArrowClockwise weight="bold" /> Actualizar
+              </Button>
+            </div>
+          </GlassCard>
 
-      {error && <div className="ch-status error">{error}</div>}
+          {error && <div className="ch-status error employee-directory-status">{error}</div>}
 
-      <div className="ch-card ch-grid-wrapper" style={{ padding: '1.5rem' }}>
-        <div className="ag-theme-alpine" style={{ width: '100%' }}>
-          <AgGridReact
-            theme="legacy"
-            rowData={employees}
-            columnDefs={columnDefs}
-            pagination={false}
-            suppressPaginationPanel={true}
-            domLayout="autoHeight"
-            quickFilterText={quickFilterText}
-            animateRows={true}
-            rowHeight={52}
-            headerHeight={52}
-            defaultColDef={{
-              filter: true,
-              floatingFilter: false,
-              menuTabs: ['filterMenuTab'],
-              resizable: true,
-            }}
-            onGridReady={onGridReady}
-            onRowClicked={(e) => {
-              if (e.data?.no_nomina) {
-                navigate(`/capital-humano/${e.data.no_nomina}`);
-              }
-            }}
-            rowStyle={{ cursor: 'pointer', borderBottom: '1px solid var(--bg-secondary)' }}
-            autoSizeStrategy={{ type: 'fitGridWidth' }}
-            overlayLoadingTemplate={
-              '<span style="color:var(--accent-primary);font-family:Inter,sans-serif;font-size:14px">Cargando empleados…</span>'
-            }
-            overlayNoRowsTemplate={
-              '<span style="color:var(--text-muted);font-family:Inter,sans-serif;font-size:14px">No hay empleados registrados</span>'
-            }
-          />
+          <GlassCard className="employee-directory-grid-card ch-grid-wrapper">
+            <div className="ag-theme-alpine employee-directory-grid">
+              <AgGridReact
+                theme="legacy"
+                rowData={employees}
+                columnDefs={columnDefs}
+                pagination={false}
+                suppressPaginationPanel={true}
+                domLayout="autoHeight"
+                quickFilterText={quickFilterText}
+                animateRows={true}
+                rowHeight={52}
+                headerHeight={52}
+                defaultColDef={{
+                  filter: true,
+                  floatingFilter: false,
+                  menuTabs: ['filterMenuTab'],
+                  resizable: true,
+                }}
+                onGridReady={onGridReady}
+                onRowClicked={(e) => {
+                  if (e.data?.no_nomina) {
+                    navigate(`/capital-humano/${e.data.no_nomina}`);
+                  }
+                }}
+                autoSizeStrategy={{ type: 'fitGridWidth' }}
+                overlayLoadingTemplate={
+                  '<span style="color:var(--accent-primary);font-family:Inter,sans-serif;font-size:14px">Cargando empleados…</span>'
+                }
+                overlayNoRowsTemplate={
+                  '<span style="color:var(--text-muted);font-family:Inter,sans-serif;font-size:14px">No hay empleados registrados</span>'
+                }
+              />
+            </div>
+          </GlassCard>
         </div>
-      </div>
-    </div>
+      </PageShell>
 
       {/* ── Modal Alta ── */}
       {isAltaModalOpen && (
-        <div className="ch-modal-overlay" onClick={() => setIsAltaModalOpen(false)}>
-          <div className="ch-modal" style={{ maxWidth: '500px' }} onClick={e => e.stopPropagation()}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-              <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <UserPlus size={24} weight="duotone" color="var(--accent-primary)" />
+        <div className="ch-modal-overlay employee-directory-modal-overlay" onClick={() => {
+          setAltaError(null);
+          setIsAltaModalOpen(false);
+        }}>
+          <div className="ch-modal employee-directory-modal employee-directory-modal--wide" onClick={e => e.stopPropagation()}>
+            <div className="employee-directory-modal-header">
+              <h3>
+                <span className="employee-directory-modal-icon">
+                  <UserPlus size={24} weight="duotone" />
+                </span>
                 Alta de Nuevo Empleado
               </h3>
-              <X size={20} style={{ cursor: 'pointer', color: 'var(--text-muted)' }} onClick={() => setIsAltaModalOpen(false)} />
+              <button
+                type="button"
+                className="employee-directory-close"
+                aria-label="Cerrar alta de empleado"
+                onClick={() => {
+                  setAltaError(null);
+                  setIsAltaModalOpen(false);
+                }}
+              >
+                <X size={20} />
+              </button>
             </div>
             <form onSubmit={handleAltaSubmit} className="ch-form">
-              <div className="ch-field">
-                <label>No. Nómina</label>
-                <input required type="text" value={altaForm.no_nomina} onChange={e => setAltaForm({ ...altaForm, no_nomina: e.target.value })} placeholder="Ex: 1024" />
-              </div>
-              <div className="ch-field">
-                <label>Fecha Ingreso</label>
-                <input required type="date" value={altaForm.fecha_ingreso} onChange={e => setAltaForm({ ...altaForm, fecha_ingreso: e.target.value })} />
-              </div>
-              <div className="ch-field ch-form-full">
-                <label>Nombre Completo</label>
-                <input required type="text" value={altaForm.nombre} onChange={e => setAltaForm({ ...altaForm, nombre: e.target.value })} placeholder="Nombre y Apellidos" />
-              </div>
-              <div className="ch-field ch-form-full">
-                <label>Puesto</label>
-                <input required type="text" value={altaForm.puesto} onChange={e => setAltaForm({ ...altaForm, puesto: e.target.value })} placeholder="Puesto Operativo" />
-              </div>
-              <div className="ch-field">
-                <label>Horario L-V</label>
-                <input 
-                  type="text" 
-                  value={altaForm.horario_lv} 
-                  onChange={e => setAltaForm({ ...altaForm, horario_lv: e.target.value })} 
+              {altaError && <div className="employee-directory-modal-error">{altaError}</div>}
+              <Input required type="text" label="No. Nómina" value={altaForm.no_nomina} onChange={e => setAltaForm({ ...altaForm, no_nomina: e.target.value })} placeholder="Ex: 1024" />
+              <Input required type="date" label="Fecha Ingreso" value={altaForm.fecha_ingreso} onChange={e => setAltaForm({ ...altaForm, fecha_ingreso: e.target.value })} />
+              <Input className="ch-form-full" required type="text" label="Nombre Completo" value={altaForm.nombre} onChange={e => setAltaForm({ ...altaForm, nombre: e.target.value })} placeholder="Nombre y Apellidos" />
+              <Input className="ch-form-full" required type="text" label="Puesto" value={altaForm.puesto} onChange={e => setAltaForm({ ...altaForm, puesto: e.target.value })} placeholder="Puesto Operativo" />
+              <Input
+                  type="text"
+                  label="Horario L-V"
+                  value={altaForm.horario_lv}
+                  onChange={e => setAltaForm({ ...altaForm, horario_lv: e.target.value })}
                   onBlur={e => setAltaForm({ ...altaForm, horario_lv: formatTimeRange(e.target.value) })}
-                  placeholder="Ex: 8 - 5" 
-                />
-              </div>
-              <div className="ch-field">
-                <label>Horario Sábado</label>
-                <input 
-                  type="text" 
-                  value={altaForm.horario_s} 
-                  onChange={e => setAltaForm({ ...altaForm, horario_s: e.target.value })} 
+                  placeholder="Ex: 8 - 5"
+              />
+              <Input
+                  type="text"
+                  label="Horario Sábado"
+                  value={altaForm.horario_s}
+                  onChange={e => setAltaForm({ ...altaForm, horario_s: e.target.value })}
                   onBlur={e => setAltaForm({ ...altaForm, horario_s: formatTimeRange(e.target.value) })}
-                  placeholder="Ex: 7 - 12" 
-                />
-              </div>
-              <div className="ch-actions ch-form-full" style={{ marginTop: '1rem', justifyContent: 'flex-end' }}>
-                <button type="button" className="ch-btn ch-btn-ghost" onClick={() => setIsAltaModalOpen(false)}>Cancelar</button>
-                <button type="submit" className="ch-btn ch-btn-primary" disabled={submitting}>
-                  {submitting ? <CircleNotch className="animate-spin" /> : <FloppyDisk weight="fill" />} 
+                  placeholder="Ex: 7 - 12"
+              />
+              <div className="employee-directory-form-actions ch-form-full">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => {
+                    setAltaError(null);
+                    setIsAltaModalOpen(false);
+                  }}
+                >
+                  Cancelar
+                </Button>
+                <Button type="submit" disabled={submitting}>
+                  {submitting ? <CircleNotch className="animate-spin" /> : <FloppyDisk weight="fill" />}
                   Guardar Empleado
-                </button>
+                </Button>
               </div>
             </form>
           </div>
@@ -361,90 +391,97 @@ const EmployeeDirectory: React.FC = () => {
 
       {/* ── Modal Baja ── */}
       {isBajaModalOpen && (
-        <div className="ch-modal-overlay" onClick={() => setIsBajaModalOpen(false)}>
-          <div className="ch-modal" onClick={e => e.stopPropagation()}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-              <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <UserMinus size={24} weight="duotone" color="var(--error-text)" />
+        <div className="ch-modal-overlay employee-directory-modal-overlay" onClick={() => {
+          setBajaError(null);
+          setIsBajaModalOpen(false);
+        }}>
+          <div className="ch-modal employee-directory-modal" onClick={e => e.stopPropagation()}>
+            <div className="employee-directory-modal-header">
+              <h3>
+                <span className="employee-directory-modal-icon employee-directory-modal-icon--danger">
+                  <UserMinus size={24} weight="duotone" />
+                </span>
                 Baja de Empleado
               </h3>
-              <X size={20} style={{ cursor: 'pointer', color: 'var(--text-muted)' }} onClick={() => setIsBajaModalOpen(false)} />
+              <button
+                type="button"
+                className="employee-directory-close"
+                aria-label="Cerrar baja de empleado"
+                onClick={() => {
+                  setBajaError(null);
+                  setIsBajaModalOpen(false);
+                }}
+              >
+                <X size={20} />
+              </button>
             </div>
-            <p style={{ marginBottom: '1.5rem' }}>Esta acción desactivará al empleado del sistema de nómina activa.</p>
-            <form onSubmit={handleBajaSubmit} className="ch-form" style={{ gridTemplateColumns: '1fr' }}>
-              <div className="ch-field" ref={searchRef} style={{ position: 'relative' }}>
+            <p className="employee-directory-warning">Esta acción desactivará al empleado del sistema de nómina activa.</p>
+            <form onSubmit={handleBajaSubmit} className="ch-form employee-directory-baja-form">
+              {bajaError && <div className="employee-directory-modal-error">{bajaError}</div>}
+              <div className="ch-field employee-directory-autocomplete" ref={searchRef}>
                 <label>Buscar Empleado</label>
-                <div style={{ position: 'relative' }}>
-                  <MagnifyingGlass size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                  <input 
-                    type="text" 
-                    placeholder="No. Nómina o Nombre..." 
+                <div className="employee-directory-autocomplete-input">
+                  <MagnifyingGlass size={16} />
+                  <input
+                    type="text"
+                    placeholder="No. Nómina o Nombre..."
                     value={searchTerm}
                     onChange={e => {
                       setSearchTerm(e.target.value);
                       setShowResults(true);
                     }}
                     onFocus={() => setShowResults(true)}
-                    style={{ paddingLeft: '36px', width: '100%' }}
                   />
                 </div>
                 {showResults && searchTerm && (
-                  <div style={{
-                    position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100,
-                    background: 'var(--card-bg)', border: '1px solid var(--border-color)',
-                    borderRadius: '8px', marginTop: '4px', boxShadow: 'var(--shadow-lg)',
-                    maxHeight: '200px', overflowY: 'auto'
-                  }}>
+                  <div className="employee-directory-autocomplete-results">
                     {filteredActive.length > 0 ? (
                       filteredActive.map(emp => (
-                        <div 
+                        <div
                           key={emp.no_nomina}
                           onClick={() => {
                             setBajaForm({ ...bajaForm, no_nomina: emp.no_nomina });
                             setSearchTerm(`${emp.no_nomina} - ${emp.nombre}`);
                             setShowResults(false);
                           }}
-                          style={{
-                            padding: '10px 14px', cursor: 'pointer', fontSize: '0.875rem',
-                            borderBottom: '1px solid var(--bg-primary)',
-                            display: 'flex', justifyContent: 'space-between'
-                          }}
                           className="autocomplete-item"
                         >
                           <span>{emp.nombre}</span>
-                          <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>{emp.no_nomina}</span>
+                          <span>{emp.no_nomina}</span>
                         </div>
                       ))
                     ) : (
-                      <div style={{ padding: '14px', fontSize: '0.875rem', color: 'var(--text-muted)' }}>No se encontraron resultados</div>
+                      <div className="employee-directory-autocomplete-empty">No se encontraron resultados</div>
                     )}
                   </div>
                 )}
               </div>
-              <div className="ch-field">
-                <label>Fecha de Baja</label>
-                <input required type="date" value={bajaForm.fecha_baja} onChange={e => setBajaForm({ ...bajaForm, fecha_baja: e.target.value })} />
-              </div>
-              <div className="ch-field">
-                <label>Motivo de Baja</label>
-                <textarea 
-                  required 
-                  value={bajaForm.motivo_baja} 
+              <Input required type="date" label="Fecha de Baja" value={bajaForm.fecha_baja} onChange={e => setBajaForm({ ...bajaForm, fecha_baja: e.target.value })} />
+              <label className="axis-input">
+                <span className="axis-input__label">Motivo de Baja</span>
+                <textarea
+                  className="axis-input__control employee-directory-textarea"
+                  required
+                  value={bajaForm.motivo_baja}
                   onChange={e => setBajaForm({ ...bajaForm, motivo_baja: e.target.value })}
                   placeholder="Ej: Renuncia voluntaria, fin de contrato..."
-                  style={{ 
-                    padding: '0.7rem 0.875rem', borderRadius: '8px', border: '1px solid var(--border-color)',
-                    background: 'var(--bg-primary)', color: 'var(--text-main)', fontSize: '0.9rem',
-                    fontFamily: 'Inter, sans-serif', minHeight: '80px', resize: 'vertical'
-                  }}
                 />
-              </div>
-              <div className="ch-actions" style={{ marginTop: '1rem', justifyContent: 'flex-end' }}>
-                <button type="button" className="ch-btn ch-btn-ghost" onClick={() => setIsBajaModalOpen(false)}>Cancelar</button>
-                <button type="submit" className="ch-btn" disabled={submitting || !bajaForm.no_nomina} style={{ background: 'var(--error-bg)', color: 'var(--error-text)', border: '1px solid var(--error-border)' }}>
-                  {submitting ? <CircleNotch className="animate-spin" /> : <WarningCircle weight="fill" />} 
+              </label>
+              <div className="employee-directory-form-actions">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => {
+                    setBajaError(null);
+                    setIsBajaModalOpen(false);
+                  }}
+                >
+                  Cancelar
+                </Button>
+                <Button type="submit" variant="danger" disabled={submitting || !bajaForm.no_nomina}>
+                  {submitting ? <CircleNotch className="animate-spin" /> : <WarningCircle weight="fill" />}
                   Confirmar Baja
-                </button>
+                </Button>
               </div>
             </form>
           </div>

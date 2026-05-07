@@ -102,7 +102,7 @@ const Navbar: React.FC = () => {
         <div className="navbar-brand-icon">
           <Lightning size={24} weight="fill" />
         </div>
-        <span className="navbar-brand-text">Nómina 360°</span>
+        <span className="navbar-brand-text">Axis</span>
       </NavLink>
 
       <ul className="navbar-nav">
@@ -112,7 +112,7 @@ const Navbar: React.FC = () => {
             end
             className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
           >
-            <House size={20} style={{ marginRight: '8px' }} />
+            <House size={20} className="nav-link-icon" />
             Dashboard
           </NavLink>
         </li>
@@ -127,7 +127,7 @@ const Navbar: React.FC = () => {
               onClick={() => toggleSection(section.label)}
               aria-expanded={openSection === section.label}
             >
-              <span className="nav-link-icon-container" style={{ marginRight: '8px', display: 'flex' }}>
+              <span className="nav-link-icon-container">
                 {section.icon}
               </span>
               {section.label}
@@ -160,7 +160,7 @@ const Navbar: React.FC = () => {
 
       <div className="navbar-right">
         <button className="nav-logout-btn" onClick={handleLogout}>
-          <SignOut size={18} style={{ marginRight: '6px' }} />
+          <SignOut size={18} className="nav-logout-icon" />
           Salir
         </button>
       </div>

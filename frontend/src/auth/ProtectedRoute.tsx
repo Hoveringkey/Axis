@@ -2,6 +2,7 @@ import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from './AuthContext';
 import type { PermissionKey } from './AuthContext';
+import { Button, ErrorState, LoadingState } from '../components/ui';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -10,10 +11,12 @@ interface ProtectedRouteProps {
 }
 
 const AccessDenied = () => (
-  <div role="alert" style={{ padding: '2rem' }}>
-    <h2>Acceso denegado</h2>
-    <p>No tienes permiso para acceder a esta sección.</p>
-  </div>
+  <ErrorState
+    fullScreen
+    title="Acceso no autorizado"
+    message="Tu rol actual no tiene permiso para ver esta sección."
+    action={<Button onClick={() => window.location.assign('/')}>Volver al dashboard</Button>}
+  />
 );
 
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
@@ -25,7 +28,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   const location = useLocation();
 
   if (isLoading) {
-    return <div>Cargando sesion...</div>;
+    return <LoadingState fullScreen message="Validando sesión..." />;
   }
 
   if (!isAuthenticated) {

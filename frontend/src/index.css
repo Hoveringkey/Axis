@@ -1,87 +1,188 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
 /* =====================================================
-   DESIGN TOKENS — Sober Slate & Indigo Corporate Theme
+   AXIS DESIGN TOKENS - Premium light glass system
    ===================================================== */
 :root {
-  /* ── Backgrounds ── */
-  --bg-primary:     #f8fafc;   /* Slate 50  — page canvas        */
-  --bg-secondary:   #f1f5f9;   /* Slate 100 — subtle section fill */
-  --sidebar-bg:     #0f172a;   /* Slate 900 — navbar             */
-  --card-bg:        #ffffff;   /* Pure white card surface        */
-  --card-hover-bg:  #fafbff;   /* Faint hover state for cards    */
+  /* Backgrounds */
+  --color-bg: #f8fafc;
+  --color-bg-soft: #f1f5f9;
+  --color-bg-elevated: #ffffff;
+  --color-bg-gradient-a: #f8fafc;
+  --color-bg-gradient-b: #eef4ff;
+  --color-bg-gradient-c: #f7f3ff;
 
-  /* ── Text ── */
-  --text-main:      #1e293b;   /* Slate 800 — primary text       */
-  --text-secondary: #475569;   /* Slate 600 — secondary text     */
-  --text-muted:     #64748b;   /* Slate 500 — placeholder / label*/
-  --text-inverse:   #f8fafc;   /* On dark surfaces (navbar)      */
+  /* Surfaces */
+  --color-surface: rgba(255, 255, 255, 0.78);
+  --color-surface-strong: rgba(255, 255, 255, 0.92);
+  --color-surface-muted: rgba(248, 250, 252, 0.72);
 
-  /* ── Accent — Indigo ── */
-  --accent-primary: #4f46e5;   /* Indigo 600 — buttons, links    */
-  --accent-hover:   #4338ca;   /* Indigo 700 — button hover      */
-  --accent-light:   #eef2ff;   /* Indigo 50  — tag / badge bg    */
-  --accent-mid:     #818cf8;   /* Indigo 400 — icon on dark bg   */
-  --accent-shadow:  rgba(79, 70, 229, 0.25);
+  /* Glass */
+  --glass-bg: rgba(255, 255, 255, 0.68);
+  --glass-bg-strong: rgba(255, 255, 255, 0.82);
+  --glass-bg-soft: rgba(255, 255, 255, 0.52);
+  --glass-blur: 20px;
+  --glass-blur-strong: 28px;
+  --glass-saturate: 160%;
 
-  /* ── Semantic Palette Extensions ── */
-  --color-white:    #ffffff;
-  --color-violet:   #7c3aed;   /* Violet 700 */
-  --color-emerald:  #059669;   /* Emerald 600 */
-  --color-amber:    #d97706;   /* Amber 600 */
-  --color-rose:     #e11d48;   /* Rose 600 */
+  /* Borders */
+  --color-border: rgba(15, 23, 42, 0.10);
+  --color-border-strong: rgba(15, 23, 42, 0.16);
+  --color-border-soft: rgba(255, 255, 255, 0.72);
+
+  /* Text */
+  --color-text: #0f172a;
+  --color-text-muted: #475569;
+  --color-text-subtle: #64748b;
+  --color-text-disabled: #94a3b8;
+  --color-text-inverse: #ffffff;
+
+  /* Accent */
+  --color-accent: #2563eb;
+  --color-accent-hover: #1d4ed8;
+  --color-accent-soft: rgba(37, 99, 235, 0.10);
+  --color-accent-border: rgba(37, 99, 235, 0.24);
+
+  /* Status */
+  --color-success: #16a34a;
+  --color-success-soft: rgba(22, 163, 74, 0.12);
+  --color-success-border: rgba(22, 163, 74, 0.24);
+  --color-warning: #d97706;
+  --color-warning-soft: rgba(217, 119, 6, 0.12);
+  --color-warning-border: rgba(217, 119, 6, 0.24);
+  --color-error: #dc2626;
+  --color-error-soft: rgba(220, 38, 38, 0.12);
+  --color-error-border: rgba(220, 38, 38, 0.24);
+  --color-info: #0284c7;
+  --color-info-soft: rgba(2, 132, 199, 0.12);
+  --color-info-border: rgba(2, 132, 199, 0.24);
+
+  /* Typography */
+  --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-regular: 400;
+  --font-medium: 500;
+  --font-semibold: 600;
+  --font-bold: 700;
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.25rem;
+  --text-2xl: 1.5rem;
+  --text-3xl: 1.875rem;
+
+  /* Layout */
+  --page-max-width: 1280px;
+  --page-padding-x: 24px;
+  --page-padding-y: 32px;
+  --navbar-height: 64px;
+  --navbar-top: 18px;
+
+  /* Spacing */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  /* Radius */
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 18px;
+  --radius-xl: 24px;
+  --radius-2xl: 28px;
+  --radius-pill: 999px;
+
+  /* Shadows */
+  --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.05);
+  --shadow-sm: 0 8px 24px rgba(15, 23, 42, 0.06);
+  --shadow-md: 0 18px 50px rgba(15, 23, 42, 0.08);
+  --shadow-lg: 0 24px 80px rgba(15, 23, 42, 0.12);
+  --shadow-xl: 0 28px 90px rgba(15, 23, 42, 0.14);
+
+  /* Chart palette */
+  --chart-1: #2563eb;
+  --chart-2: #64748b;
+  --chart-3: #16a34a;
+  --chart-4: #d97706;
+  --chart-5: #7c3aed;
+  --chart-danger: #dc2626;
+
+  /* Compatibility aliases for existing screens */
+  --bg-primary: var(--color-bg);
+  --bg-secondary: var(--color-bg-soft);
+  --sidebar-bg: #0f172a;
+  --card-bg: var(--color-bg-elevated);
+  --card-hover-bg: #fafbff;
+  --text-main: var(--color-text);
+  --text-secondary: var(--color-text-muted);
+  --text-muted: var(--color-text-subtle);
+  --text-inverse: #f8fafc;
+  --accent-primary: var(--color-accent);
+  --accent-hover: var(--color-accent-hover);
+  --accent-light: var(--color-accent-soft);
+  --accent-mid: #60a5fa;
+  --accent-shadow: rgba(37, 99, 235, 0.25);
+  --border-color: #e2e8f0;
+  --border-focus: var(--color-accent);
+  --color-white: #ffffff;
+  --color-violet: #7c3aed;
+  --color-emerald: #059669;
+  --color-amber: #d97706;
+  --color-rose: #e11d48;
   --color-amber-100: #fef3c7;
   --color-amber-200: #fcd34d;
   --color-emerald-100: #dcfce7;
   --color-emerald-700: #15803d;
   --color-emerald-200: #bbf7d0;
   --color-slate-200: #cbd5e1;
-  --color-red-300:  #fca5a5;   /* navbar logout hover */
+  --color-red-300: #fca5a5;
+  --success-bg: var(--color-success-soft);
+  --success-border: var(--color-success-border);
+  --success-text: #15803d;
+  --error-bg: var(--color-error-soft);
+  --error-border: var(--color-error-border);
+  --error-text: var(--color-error);
+  --warning-bg: var(--color-warning-soft);
+  --warning-border: var(--color-warning-border);
+  --warning-text: #b45309;
 
-  /* ── Borders ── */
-  --border-color:   #e2e8f0;   /* Slate 200 — default border     */
-  --border-focus:   #4f46e5;   /* Indigo 600 — focus ring color  */
-
-  /* ── Semantic colours ── */
-  --success-bg:     #f0fdf4;
-  --success-border: #bbf7d0;
-  --success-text:   #15803d;
-
-  --error-bg:       #fef2f2;
-  --error-border:   #fecaca;
-  --error-text:     #dc2626;
-
-  --warning-bg:     #fffbeb;
-  --warning-border: #fde68a;
-  --warning-text:   #b45309;
-
-  /* ── Shadows ── */
-  --shadow-xs:  0 1px 2px rgba(0, 0, 0, 0.05);
-  --shadow-sm:  0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
-  --shadow-md:  0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -1px rgba(0, 0, 0, 0.04);
-  --shadow-lg:  0 10px 15px -3px rgba(0, 0, 0, 0.07), 0 4px 6px -2px rgba(0, 0, 0, 0.03);
-  --shadow-xl:  0 20px 25px -5px rgba(0, 0, 0, 0.08), 0 10px 10px -5px rgba(0, 0, 0, 0.03);
-
-  /* ── Typography ── */
-  font-family: 'Inter', system-ui, Avenir, Helvetica, Arial, sans-serif;
+  font-family: var(--font-sans);
   line-height: 1.5;
-  font-weight: 400;
+  font-weight: var(--font-regular);
   color-scheme: light;
-  color: var(--text-main);
-  background-color: var(--bg-primary);
+  color: var(--color-text);
+  background-color: var(--color-bg);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* ── Reset ── */
 *, *::before, *::after {
   box-sizing: border-box;
+}
+
+html {
+  min-height: 100%;
+  background: var(--color-bg);
 }
 
 body {
   margin: 0;
   min-height: 100vh;
-  background-color: var(--bg-primary);
+  background:
+    radial-gradient(circle at top left, rgba(37, 99, 235, 0.10), transparent 34rem),
+    linear-gradient(135deg, var(--color-bg-gradient-a), var(--color-bg-gradient-b) 52%, var(--color-bg-gradient-c));
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
 }

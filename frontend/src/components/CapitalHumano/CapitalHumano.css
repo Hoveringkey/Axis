@@ -2193,3 +2193,93 @@
     width: 100%;
   }
 }
+
+/* ---- BULK IMPORTER — glass redesign ---- */
+.bulk-importer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.bulk-importer-hint {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+
+.bulk-importer-hint code {
+  padding: 0.1em 0.4em;
+  background: var(--color-bg-soft);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  font-size: 0.85em;
+  color: var(--color-accent);
+  font-family: monospace;
+}
+
+.bulk-importer-textarea {
+  width: 100%;
+  min-height: 120px;
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-surface-strong);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text);
+  font-family: monospace;
+  font-size: var(--text-sm);
+  resize: vertical;
+  outline: none;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.bulk-importer-textarea::placeholder {
+  color: var(--color-text-disabled);
+}
+
+.bulk-importer-textarea:focus {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px var(--color-accent-soft);
+}
+
+.bulk-importer-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.bulk-importer-status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+}
+
+.bulk-importer-status--error {
+  color: var(--color-error);
+  background: var(--color-error-soft);
+  border: 1px solid var(--color-error-border);
+}
+
+.bulk-importer-status--success {
+  color: var(--color-success);
+  background: var(--color-success-soft);
+  border: 1px solid var(--color-success-border);
+}
+
+.bulk-importer-preview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.bulk-importer-preview-title {
+  margin: 0;
+  color: var(--color-text);
+  font-size: var(--text-base);
+  font-weight: var(--font-semibold);
+}

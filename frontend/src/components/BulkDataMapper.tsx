@@ -2,13 +2,14 @@ import React, { useState } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import type { ColDef } from 'ag-grid-community';
 import api from '../api/axios';
-import { CircleNotch, CheckCircle } from '@phosphor-icons/react';
+import { CircleNotch, CheckCircle, WarningCircle, Eye } from '@phosphor-icons/react';
+import { Button } from './ui';
 
 const BulkDataMapper: React.FC = () => {
-  const [rawData, setRawData] = useState('');
-  const [parsedData, setParsedData] = useState<any[]>([]);
-  const [columnDefs, setColumnDefs] = useState<ColDef[]>([]);
-  const [statusMsg, setStatusMsg] = useState<{ type: 'error' | 'success', text: string } | null>(null);
+  const [rawData, setRawData]         = useState('');
+  const [parsedData, setParsedData]   = useState<Record<string, string>[]>([]);
+  const [columnDefs, setColumnDefs]   = useState<ColDef[]>([]);
+  const [statusMsg, setStatusMsg]     = useState<{ type: 'error' | 'success'; text: string } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleParse = () => {
@@ -21,7 +22,7 @@ const BulkDataMapper: React.FC = () => {
     try {
       const rows = rawData.split('\n').filter(row => row.trim() !== '');
       if (rows.length < 2) {
-        setStatusMsg({ type: 'error', text: 'Please provide at least a header row and one data row.' });
+        setStatusMsg({ type: 'error', text: 'Proporciona al menos una fila de encabezados y una fila de datos.' });
         return;
       }
 
@@ -30,9 +31,9 @@ const BulkDataMapper: React.FC = () => {
 
       const headers = rows[0].split(separator).map(h => h.replace('\r', '').trim().toLowerCase());
 
-      const data = rows.slice(1).map(row => {
+      const data: Record<string, string>[] = rows.slice(1).map(row => {
         const values = row.split(separator);
-        const obj: any = {};
+        const obj: Record<string, string> = {};
         headers.forEach((header, index) => {
           let val = values[index] ? values[index].replace('\r', '').trim() : '';
           if (header === 'horario_s' && !val) {
@@ -45,19 +46,18 @@ const BulkDataMapper: React.FC = () => {
 
       setParsedData(data);
 
-      // Generate column definitions for preview
       const cols: ColDef[] = headers.map(header => ({
         field: header,
         headerName: header.toUpperCase(),
         sortable: true,
         filter: true,
         resizable: true,
-        flex: 1
+        flex: 1,
       }));
       setColumnDefs(cols);
       setStatusMsg(null);
-    } catch (err) {
-      setStatusMsg({ type: 'error', text: 'Failed to parse data. Please ensure it is TSV or CSV format.' });
+    } catch {
+      setStatusMsg({ type: 'error', text: 'No se pudieron leer los datos. Verifica que el formato sea TSV o CSV.' });
     }
   };
 
@@ -68,59 +68,68 @@ const BulkDataMapper: React.FC = () => {
 
     try {
       await api.post('/api/payroll/employees/bulk-create/', parsedData);
-      setStatusMsg({ type: 'success', text: 'Successfully imported employees!' });
+      setStatusMsg({ type: 'success', text: '¡Empleados importados correctamente!' });
       setRawData('');
       setParsedData([]);
       setColumnDefs([]);
-    } catch (err: any) {
-      setStatusMsg({ type: 'error', text: err.response?.data ? JSON.stringify(err.response.data) : 'Failed to import employees.' });
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: unknown } };
+      setStatusMsg({
+        type: 'error',
+        text: e.response?.data ? JSON.stringify(e.response.data) : 'No se pudieron importar los empleados.',
+      });
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  const n = parsedData.length;
+
   return (
-    <div className="tab-pane fade-in">
-      <h2>Bulk Import Employees</h2>
-      <p>Paste data from Excel or CSV. The first row must contain column headers matching the system (e.g., no_nomina, nombre, puesto, horario_lv, horario_s).</p>
+    <div className="bulk-importer">
+      <p className="bulk-importer-hint">
+        La primera fila debe contener los encabezados exactos del sistema (ej: <code>no_nomina, nombre, puesto, horario_lv, horario_s</code>). Compatible con TSV (Excel) y CSV.
+      </p>
 
-      <div className="form-group" style={{ marginBottom: '1rem' }}>
-        <textarea
-          style={{ width: '100%', height: '150px', padding: '0.5rem', fontFamily: 'monospace' }}
-          placeholder="no_nomina&#9;nombre&#9;puesto..."
-          value={rawData}
-          onChange={(e) => setRawData(e.target.value)}
-        />
-      </div>
+      <textarea
+        className="bulk-importer-textarea"
+        placeholder="no_nomina&#9;nombre&#9;puesto&#9;horario_lv&#9;horario_s"
+        value={rawData}
+        onChange={e => setRawData(e.target.value)}
+      />
 
-      <div className="calc-controls" style={{ marginBottom: '1rem' }}>
-        <button className="submit-button" onClick={handleParse} style={{ marginRight: '1rem' }}>
-          Preview Data
-        </button>
-        <button
-          className="submit-button"
+      <div className="bulk-importer-controls">
+        <Button variant="secondary" onClick={handleParse} disabled={!rawData.trim()}>
+          <Eye size={16} weight="duotone" /> Previsualizar
+        </Button>
+        <Button
+          variant="primary"
           onClick={handleImport}
           disabled={isSubmitting || parsedData.length === 0}
         >
-          {isSubmitting ? (
-            <><CircleNotch className="animate-spin" size={18} /> Importing...</>
-          ) : (
-            <><CheckCircle weight="fill" size={18} /> Confirm & Import</>
-          )}
-        </button>
+          {isSubmitting
+            ? <><CircleNotch className="animate-spin" size={16} /> Importando…</>
+            : <><CheckCircle weight="fill" size={16} /> Confirmar e importar</>
+          }
+        </Button>
       </div>
 
       {statusMsg && (
-        <div className={`dashboard-error ${statusMsg.type === 'success' ? 'success' : ''}`}
-          style={statusMsg.type === 'success' ? { backgroundColor: 'var(--color-emerald)', color: 'var(--color-white)', padding: '1rem', borderRadius: '4px', marginBottom: '1rem' } : {}}>
+        <div className={`bulk-importer-status bulk-importer-status--${statusMsg.type}`}>
+          {statusMsg.type === 'error'
+            ? <WarningCircle size={16} weight="fill" />
+            : <CheckCircle size={16} weight="fill" />
+          }
           {statusMsg.text}
         </div>
       )}
 
       {parsedData.length > 0 && (
-        <div className="mt-4">
-          <h3 className="mb-2">Data Preview ({parsedData.length} records)</h3>
-          <div className="ag-theme-alpine-dark" style={{ height: '400px', width: '100%' }}>
+        <div className="bulk-importer-preview">
+          <p className="bulk-importer-preview-title">
+            Vista previa — {n} {n !== 1 ? 'registros' : 'registro'}
+          </p>
+          <div className="ag-theme-alpine" style={{ width: '100%' }}>
             <AgGridReact
               theme="legacy"
               rowData={parsedData}
@@ -128,6 +137,7 @@ const BulkDataMapper: React.FC = () => {
               pagination={true}
               paginationPageSize={20}
               animateRows={true}
+              domLayout="autoHeight"
               defaultColDef={{
                 filter: true,
                 floatingFilter: false,

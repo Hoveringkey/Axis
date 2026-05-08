@@ -3,7 +3,6 @@ import BulkDataMapper from '../BulkDataMapper';
 import { FileArrowDown, ClipboardText, Table, CheckCircle } from '@phosphor-icons/react';
 import { GlassCard, PageShell } from '../ui';
 import '../modules.css';
-import '../Dashboard.css';
 import './CapitalHumano.css';
 import 'ag-grid-community/styles/ag-grid.css';
 import 'ag-grid-community/styles/ag-theme-alpine.css';

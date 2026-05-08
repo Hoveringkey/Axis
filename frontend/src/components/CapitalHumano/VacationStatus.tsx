@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import api from '../../api/axios';
+import { CalendarCheck, ClockCounterClockwise, HourglassMedium, WarningCircle } from '@phosphor-icons/react';
 import './CapitalHumano.css';
 
 interface VacationData {
@@ -43,67 +44,98 @@ const VacationStatus: React.FC<Props> = ({ noNomina, employeeName }) => {
 
   if (loading) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem' }}>
-        <div className="kpi-spinner" />
+      <div className="vacation-status-state">
+        <div className="vacation-status-spinner" aria-hidden="true" />
+        <p>Cargando balance de vacaciones...</p>
       </div>
     );
   }
 
   if (error) {
-    return <div className="ch-status error">{error}</div>;
+    return (
+      <div className="vacation-status-state vacation-status-state--error" role="alert">
+        <WarningCircle size={24} weight="duotone" />
+        <div>
+          <strong>No se pudo cargar vacaciones</strong>
+          <p>{error}</p>
+        </div>
+      </div>
+    );
   }
 
-  if (!data) return null;
+  if (!data) {
+    return (
+      <div className="vacation-status-state">
+        <CalendarCheck size={24} weight="duotone" />
+        <p>No hay información de vacaciones disponible.</p>
+      </div>
+    );
+  }
+
+  const totalDisfrutados = data.dias_disfrutados + data.deuda_heredada;
 
   return (
-    <div>
-      <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '1.5rem', marginTop: 0 }}>
-        Balance de vacaciones LFT 2023 · {employeeName}
-      </p>
-
-      {/* 3-stat grid */}
-      <div className="vac-grid">
-        <div className="vac-stat">
-          <div className="vac-stat-value blue">{data.dias_con_derecho}</div>
-          <div className="vac-stat-label">Días con Derecho</div>
+    <section className="vacation-status-panel" aria-label={`Balance de vacaciones de ${employeeName}`}>
+      <div className="vacation-status-header">
+        <div>
+          <p className="vacation-status-eyebrow">Balance LFT 2023</p>
+          <h2>Vacaciones</h2>
+          <p>{employeeName}</p>
         </div>
-        <div className="vac-stat">
-          <div className="vac-stat-value amber">
-            {data.dias_disfrutados + data.deuda_heredada}
+        <span className="vacation-status-period">{data.periodo}</span>
+      </div>
+
+      <div className="vacation-status-grid">
+        <article className="vacation-status-card vacation-status-card--accent">
+          <div className="vacation-status-card__icon">
+            <CalendarCheck size={22} weight="duotone" />
+          </div>
+          <div>
+            <span className="vacation-status-label">Días con derecho</span>
+            <strong className="vacation-status-value">{data.dias_con_derecho}</strong>
+          </div>
+        </article>
+
+        <article className="vacation-status-card vacation-status-card--warning">
+          <div className="vacation-status-card__icon">
+            <ClockCounterClockwise size={22} weight="duotone" />
+          </div>
+          <div>
+            <span className="vacation-status-label">Días disfrutados</span>
+            <strong className="vacation-status-value">{totalDisfrutados}</strong>
             {data.deuda_heredada > 0 && (
-              <span className="badge badge-debt">
-                (Incluye {data.deuda_heredada}d de Deuda)
+              <span className="vacation-status-debt">
+                Incluye {data.deuda_heredada}d de deuda
               </span>
             )}
           </div>
-          <div className="vac-stat-label">Días Disfrutados</div>
-        </div>
-        <div className="vac-stat">
-          <div className="vac-stat-value emerald">{data.dias_restantes}</div>
-          <div className="vac-stat-label">Días Restantes</div>
-        </div>
+        </article>
+
+        <article className="vacation-status-card vacation-status-card--success">
+          <div className="vacation-status-card__icon">
+            <HourglassMedium size={22} weight="duotone" />
+          </div>
+          <div>
+            <span className="vacation-status-label">Días restantes</span>
+            <strong className="vacation-status-value">{data.dias_restantes}</strong>
+          </div>
+        </article>
       </div>
 
-      {/* Meta info */}
-      <div className="vac-meta">
-        <div className="vac-meta-item">
-          <span className="vac-meta-label">Antigüedad</span>
-          <span className="vac-meta-value">
+      <div className="vacation-status-meta">
+        <div className="vacation-status-meta__item">
+          <span>Antigüedad</span>
+          <strong>
             {data.antigüedad_años}{' '}
             {data.antigüedad_años === 1 ? 'año' : 'años'}
-          </span>
+          </strong>
         </div>
-        <div className="vac-meta-item">
-          <span className="vac-meta-label">Período</span>
-          <span className="vac-meta-value">
-            {data.periodo}
-            <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>
-              {' '} | Ingreso: {data.fecha_ingreso}
-            </span>
-          </span>
+        <div className="vacation-status-meta__item">
+          <span>Fecha de ingreso</span>
+          <strong>{data.fecha_ingreso}</strong>
         </div>
       </div>
-    </div>
+    </section>
   );
 };
 

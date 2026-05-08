@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import api from '../api/axios';
 import { CalendarPlus, CircleNotch, FloppyDisk, CaretDown, Check } from '@phosphor-icons/react';
 import { GlassCard, Button } from './ui';
+import './Operaciones/Operaciones.css';
 
 interface Employee {
   no_nomina: string;
@@ -217,7 +218,7 @@ const IncidenceForm: React.FC<IncidenceFormProps> = ({ onIncidenceAdded }) => {
       </div>
 
       {status && (
-        <div className={`status-message ${status.type}`}>{status.message}</div>
+        <div className={`op-status-banner op-status-banner--${status.type}`}>{status.message}</div>
       )}
 
       <form onSubmit={handleSubmit} className="data-form">

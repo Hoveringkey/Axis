@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import api from '../api/axios';
 import { CreditCard, CircleNotch } from '@phosphor-icons/react';
 import { GlassCard, Button } from './ui';
+import './Operaciones/Operaciones.css';
 
 interface Employee {
   no_nomina: string;
@@ -86,7 +87,7 @@ const LoanForm: React.FC<LoanFormProps> = ({ onLoanAdded }) => {
       </div>
 
       {status && (
-        <div className={`status-message ${status.type}`}>
+        <div className={`op-status-banner op-status-banner--${status.type}`}>
           {status.message}
         </div>
       )}

@@ -320,8 +320,9 @@
 .ch-modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.45);
-  backdrop-filter: blur(4px);
+  background: rgba(248, 250, 252, 0.62);
+  backdrop-filter: blur(14px) saturate(150%);
+  -webkit-backdrop-filter: blur(14px) saturate(150%);
   z-index: 2000;
   display: flex;
   align-items: center;
@@ -711,9 +712,9 @@
 }
 
 .employee-directory-modal-overlay {
-  background: rgba(15, 23, 42, 0.34);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: rgba(248, 250, 252, 0.62);
+  backdrop-filter: blur(14px) saturate(150%);
+  -webkit-backdrop-filter: blur(14px) saturate(150%);
   padding: var(--space-6);
 }
 
@@ -1381,9 +1382,9 @@
 }
 
 .employee-swap-modal-overlay {
-  background: rgba(15, 23, 42, 0.34);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: rgba(248, 250, 252, 0.62);
+  backdrop-filter: blur(14px) saturate(150%);
+  -webkit-backdrop-filter: blur(14px) saturate(150%);
   padding: var(--space-6);
 }
 

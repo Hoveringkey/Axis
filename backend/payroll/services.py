@@ -632,6 +632,11 @@ def calculate_payroll_for_week(week_num, dry_run=True, target_year=None, closure
     return results
 
 def commit_payroll_for_week(week_num, target_year=None, user=None):
+    if target_year is None:
+        raise ValueError(
+            "commit_payroll_for_week requires an explicit target_year (ISO); "
+            "heuristic inference is unsafe for closure operations."
+        )
     iso_year = resolve_payroll_iso_year(week_num, target_year)
     closed_by = user if user is not None and user.is_authenticated else None
 

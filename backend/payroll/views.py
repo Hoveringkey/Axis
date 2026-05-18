@@ -71,6 +71,12 @@ def _parse_optional_year(raw_year):
     return target_year, None
 
 
+def _parse_required_year(raw_year):
+    if raw_year in (None, ''):
+        return None, {'error': "year (año ISO) es obligatorio para cerrar la semana"}
+    return _parse_optional_year(raw_year)
+
+
 class WeekClosedConflict(APIException):
     status_code = status.HTTP_409_CONFLICT
     default_detail = 'La semana está cerrada; no se pueden registrar ni modificar incidencias.'
@@ -372,7 +378,7 @@ class ClosePayrollView(views.APIView):
         if error:
             return Response(error, status=status.HTTP_400_BAD_REQUEST)
 
-        target_year, error = _parse_optional_year(request.data.get('year'))
+        target_year, error = _parse_required_year(request.data.get('year'))
         if error:
             return Response(error, status=status.HTTP_400_BAD_REQUEST)
 
@@ -407,7 +413,7 @@ class PayrollCommitView(views.APIView):
         if error:
             return Response(error, status=status.HTTP_400_BAD_REQUEST)
 
-        target_year, error = _parse_optional_year(request.data.get('year'))
+        target_year, error = _parse_required_year(request.data.get('year'))
         if error:
             return Response(error, status=status.HTTP_400_BAD_REQUEST)
 

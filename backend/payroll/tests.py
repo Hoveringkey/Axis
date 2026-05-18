@@ -9,7 +9,7 @@ from django.contrib.auth.models import Group, User
 from rest_framework_simplejwt.tokens import RefreshToken
 from .models import Employee, ExtraHourBank, IncidenceCatalog, IncidenceRecord, Loan, PayrollClosure, PayrollSnapshot, Schedule
 from .permissions import FINANCE_ADMIN, HR_CAPTURE
-from .services import calculate_payroll_for_week, get_dashboard_metrics, safe_replace_year
+from .services import calculate_payroll_for_week, commit_payroll_for_week, get_dashboard_metrics, safe_replace_year
 
 class SafeReplaceYearTests(SimpleTestCase):
     def test_leap_year_to_non_leap_year(self):
@@ -522,6 +522,28 @@ class PayrollPreviewCommitTests(APITestCase):
         self.assertEqual(first_response.status_code, status.HTTP_200_OK)
         self.assertEqual(second_response.status_code, status.HTTP_409_CONFLICT)
         self.assertEqual(second_response.data['error'], 'Payroll week is already closed.')
+
+    def test_commit_without_year_returns_400(self):
+        self.authenticate_with_group(self.finance_group)
+
+        response = self.client.post(self.commit_url, {'semana_num': 10}, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(PayrollClosure.objects.count(), 0)
+        self.assertEqual(PayrollSnapshot.objects.count(), 0)
+
+    def test_legacy_close_without_year_returns_400(self):
+        self.authenticate_with_group(self.finance_group)
+
+        response = self.client.post(self.close_url, {'semana_num': 10}, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(PayrollClosure.objects.count(), 0)
+        self.assertEqual(PayrollSnapshot.objects.count(), 0)
+
+    def test_commit_payroll_for_week_service_requires_explicit_target_year(self):
+        with self.assertRaises(ValueError):
+            commit_payroll_for_week(10, target_year=None)
 
     def test_snapshots_can_be_filtered_by_iso_year_and_semana_num(self):
         self.authenticate_with_group(self.finance_group)

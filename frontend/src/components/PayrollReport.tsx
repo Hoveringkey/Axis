@@ -94,9 +94,20 @@ const columnDefs = buildColumnDefs();
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
+const isValidIsoYear = (raw: string): boolean => {
+  const n = parseInt(raw, 10);
+  return !isNaN(n) && n >= 1 && n <= 9999 && String(n) === raw.trim();
+};
+
+const isValidWeek = (raw: string): boolean => {
+  const n = parseInt(raw, 10);
+  return !isNaN(n) && n >= 1 && n <= 53;
+};
+
 const PayrollReport: React.FC = () => {
   const { hasPermission } = useAuth();
   const [calcWeekNum, setCalcWeekNum]   = useState('');
+  const [calcIsoYear, setCalcIsoYear]   = useState('');
   const [calcResults, setCalcResults]   = useState<CalcRow[]>([]);
   const [calcError, setCalcError]       = useState<string | null>(null);
   const [isCalculating, setIsCalculating] = useState(false);
@@ -105,12 +116,19 @@ const PayrollReport: React.FC = () => {
   const [quickFilterText, setQuickFilterText] = useState('');
   const canManagePayroll = hasPermission('can_manage_payroll');
 
+  const weekValid = isValidWeek(calcWeekNum);
+  const yearValid = isValidIsoYear(calcIsoYear);
+  const periodValid = weekValid && yearValid;
+
   useEffect(() => {
-    // Auto-fetch current week on mount to streamline UX
+    // Auto-fetch current ISO period on mount to streamline UX
     api.get('/api/payroll/current-week/')
       .then(res => {
         if (res.data.current_week) {
           setCalcWeekNum(String(res.data.current_week));
+        }
+        if (res.data.current_iso_year) {
+          setCalcIsoYear(String(res.data.current_iso_year));
         }
       })
       .catch(err => console.error("Error auto-fetching week:", err));
@@ -119,13 +137,16 @@ const PayrollReport: React.FC = () => {
   // ── Actions ────────────────────────────────────────────────────────────────
 
   const handleCalculate = async () => {
-    if (!calcWeekNum) return;
+    if (!periodValid) return;
     setIsCalculating(true);
     setCalcError(null);
     setIsClosed(false);
     try {
       const response = await api.get('/api/payroll/preview/', {
-        params: { semana_num: parseInt(calcWeekNum, 10) },
+        params: {
+          semana_num: parseInt(calcWeekNum, 10),
+          year: parseInt(calcIsoYear, 10),
+        },
       });
       const raw: CalcRow[] = response.data.results ?? response.data ?? [];
       // ── MBE filter: defensive client-side guard (backend already filters) ──
@@ -139,7 +160,7 @@ const PayrollReport: React.FC = () => {
   };
 
   const handleClosePayroll = async () => {
-    if (!calcWeekNum) return;
+    if (!periodValid) return;
     if (!canManagePayroll) {
       setCalcError('No tienes permiso para cerrar la nómina.');
       return;
@@ -149,6 +170,7 @@ const PayrollReport: React.FC = () => {
     try {
       await api.post('/api/payroll/commit/', {
         semana_num: parseInt(calcWeekNum, 10),
+        year: parseInt(calcIsoYear, 10),
       });
       setIsClosed(true);
     } catch (err: unknown) {
@@ -173,8 +195,9 @@ const PayrollReport: React.FC = () => {
 
   // ── Derived labels ─────────────────────────────────────────────────────────
 
-  const year        = new Date().getFullYear();
-  const periodLabel = calcWeekNum ? `Semana ${calcWeekNum}, ${year}` : 'Selecciona un período';
+  const periodLabel = periodValid
+    ? `Semana ${calcWeekNum}, ${calcIsoYear}`
+    : 'Selecciona un período';
 
   const grandTotal = useMemo(
     () => calcResults.reduce((sum, row) => sum + computeTotal(row), 0),
@@ -214,11 +237,24 @@ const PayrollReport: React.FC = () => {
               onKeyDown={handleKeyDown}
               className="pr-week-input"
             />
+            <label htmlFor="payroll-iso-year-input" className="pr-week-label">
+              Año ISO
+            </label>
+            <input
+              id="payroll-iso-year-input"
+              type="number"
+              placeholder="2026"
+              min={1} max={9999}
+              value={calcIsoYear}
+              onChange={e => setCalcIsoYear(e.target.value)}
+              onKeyDown={handleKeyDown}
+              className="pr-week-input"
+            />
             <Button
               id="payroll-calculate-btn"
               variant="primary"
               onClick={handleCalculate}
-              disabled={isCalculating || !calcWeekNum}
+              disabled={isCalculating || !periodValid}
             >
               {isCalculating
                 ? <><CircleNotch className="animate-spin" size={16} /> Calculando…</>
@@ -230,7 +266,7 @@ const PayrollReport: React.FC = () => {
                 id="payroll-close-btn"
                 variant={isClosed ? 'success' : 'danger'}
                 onClick={handleClosePayroll}
-                disabled={isClosing || calcResults.length === 0 || isClosed || isCalculating}
+                disabled={isClosing || calcResults.length === 0 || isClosed || isCalculating || !periodValid}
                 title={calcResults.length === 0 ? 'Ejecuta el reporte primero' : ''}
               >
                 {isClosing
@@ -282,18 +318,18 @@ const PayrollReport: React.FC = () => {
       )}
 
       {/* ── Empty state (after calculation returned nothing) ── */}
-      {calcResults.length === 0 && !isCalculating && calcWeekNum && !calcError && (
+      {calcResults.length === 0 && !isCalculating && periodValid && !calcError && (
         <EmptyState
-          title={`Semana ${calcWeekNum} sin variaciones`}
+          title={`Semana ${calcWeekNum} de ${calcIsoYear} sin variaciones`}
           message="Todos los empleados tuvieron una semana limpia. No hay variaciones que mostrar."
         />
       )}
 
       {/* ── Initial prompt ── */}
-      {!calcWeekNum && !isCalculating && calcResults.length === 0 && !calcError && (
+      {!periodValid && !isCalculating && calcResults.length === 0 && !calcError && (
         <div className="pr-prompt">
           <Calculator size={48} weight="duotone" color="var(--color-accent)" />
-          <p>Ingresa el número de semana y presiona <strong>Calcular Nómina</strong> para ver las variaciones.</p>
+          <p>Ingresa el número de semana y el año ISO, y presiona <strong>Calcular Nómina</strong> para ver las variaciones.</p>
         </div>
       )}
     </div>

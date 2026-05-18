@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { MagnifyingGlass, WarningCircle, CircleNotch } from '@phosphor-icons/react';
 import { AgGridReact } from 'ag-grid-react';
 import type { ColDef, ValueGetterParams, ICellRendererParams } from 'ag-grid-community';
@@ -21,6 +21,7 @@ import type { DesgloseRow } from './GridRenderers';
 interface PayrollSnapshot {
   id: number;
   semana_num: number;
+  iso_year: number;
   fecha_cierre: string;
   empleado_no_nomina: string;
   empleado_nombre: string;
@@ -87,26 +88,45 @@ const buildColumnDefs = (): ColDef<PayrollSnapshot>[] => [
 const columnDefs = buildColumnDefs();
 
 const HistoryView: React.FC = () => {
-  const [semanaInput, setSemanaInput]     = useState('');
-  const [semanaQueried, setSemanaQueried] = useState<number | null>(null);
-  const [snapshots, setSnapshots]         = useState<PayrollSnapshot[]>([]);
-  const [loading, setLoading]             = useState(false);
-  const [error, setError]                 = useState<string | null>(null);
+  const [semanaInput, setSemanaInput]         = useState('');
+  const [isoYearInput, setIsoYearInput]       = useState('');
+  const [semanaQueried, setSemanaQueried]     = useState<number | null>(null);
+  const [isoYearQueried, setIsoYearQueried]   = useState<number | null>(null);
+  const [snapshots, setSnapshots]             = useState<PayrollSnapshot[]>([]);
+  const [loading, setLoading]                 = useState(false);
+  const [error, setError]                     = useState<string | null>(null);
   const [quickFilterText, setQuickFilterText] = useState('');
 
+  useEffect(() => {
+    // Pre-fill ISO year from backend current period so cross-year searches are explicit.
+    api.get('/api/payroll/current-week/')
+      .then(res => {
+        if (res.data.current_iso_year) {
+          setIsoYearInput(String(res.data.current_iso_year));
+        }
+      })
+      .catch(err => console.error('Error auto-fetching ISO year:', err));
+  }, []);
+
   const handleSearch = useCallback(async () => {
-    const parsed = parseInt(semanaInput, 10);
-    if (!semanaInput || isNaN(parsed) || parsed < 1 || parsed > 53) {
+    const parsedSemana = parseInt(semanaInput, 10);
+    if (!semanaInput || isNaN(parsedSemana) || parsedSemana < 1 || parsedSemana > 53) {
       setError('Ingresa un número de semana válido (1–53).');
+      return;
+    }
+    const parsedYear = parseInt(isoYearInput, 10);
+    if (!isoYearInput || isNaN(parsedYear) || parsedYear < 1 || parsedYear > 9999) {
+      setError('Ingresa un año ISO válido (1–9999).');
       return;
     }
     setLoading(true);
     setError(null);
     setSnapshots([]);
-    setSemanaQueried(parsed);
+    setSemanaQueried(parsedSemana);
+    setIsoYearQueried(parsedYear);
     try {
       const res = await api.get<PayrollSnapshot[]>(
-        `/api/payroll/snapshots/?semana_num=${parsed}`
+        `/api/payroll/snapshots/?semana_num=${parsedSemana}&iso_year=${parsedYear}`
       );
       // ── MBE filter: drop completely clean records ──────────────────────────
       const filtered = res.data.filter(isNotClean);
@@ -117,14 +137,15 @@ const HistoryView: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [semanaInput]);
+  }, [semanaInput, isoYearInput]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') handleSearch();
   };
 
-  const year        = new Date().getFullYear();
-  const periodLabel = semanaQueried ? `Semana ${semanaQueried}, ${year}` : 'Selecciona un período';
+  const periodLabel = semanaQueried !== null && isoYearQueried !== null
+    ? `Semana ${semanaQueried}, ${isoYearQueried}`
+    : 'Selecciona un período';
 
   // Record count label is derived from post-filter snapshots
   const recordLabel = useMemo(() => {
@@ -162,11 +183,24 @@ const HistoryView: React.FC = () => {
                 onKeyDown={handleKeyDown}
                 className="pr-week-input"
               />
+              <label htmlFor="history-iso-year-input" className="pr-week-label">
+                Año ISO
+              </label>
+              <input
+                id="history-iso-year-input"
+                type="number"
+                placeholder="2026"
+                min={1} max={9999}
+                value={isoYearInput}
+                onChange={e => setIsoYearInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                className="pr-week-input"
+              />
               <Button
                 id="history-search-btn"
                 variant="primary"
                 onClick={handleSearch}
-                disabled={loading || !semanaInput}
+                disabled={loading || !semanaInput || !isoYearInput}
               >
                 {loading
                   ? <><CircleNotch className="animate-spin" size={16} /> Buscando…</>
@@ -214,9 +248,9 @@ const HistoryView: React.FC = () => {
         )}
 
         {/* ── Empty State (post-filter) ── */}
-        {!loading && semanaQueried !== null && snapshots.length === 0 && !error && (
+        {!loading && semanaQueried !== null && isoYearQueried !== null && snapshots.length === 0 && !error && (
           <EmptyState
-            title={`Semana ${semanaQueried} sin variaciones`}
+            title={`Semana ${semanaQueried} de ${isoYearQueried} sin variaciones`}
             message="No se encontraron registros con variaciones. Todos los empleados tuvieron una semana limpia, o la nómina aún no se ha cerrado."
           />
         )}
@@ -225,7 +259,7 @@ const HistoryView: React.FC = () => {
         {semanaQueried === null && !loading && (
           <div className="pr-prompt">
             <MagnifyingGlass size={48} weight="duotone" color="var(--color-accent)" />
-            <p>Ingresa el número de semana que deseas auditar y presiona <strong>Consultar</strong>.</p>
+            <p>Ingresa el número de semana y el año ISO que deseas auditar, y presiona <strong>Consultar</strong>.</p>
           </div>
         )}
       </div>

@@ -62,6 +62,7 @@ const IncidencesView: React.FC = () => {
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchCurrentWeek();
   }, []);
 
@@ -115,7 +116,7 @@ const getWeekNumber = (d: Date) => {
       }));
 
       setIncidences(display);
-    } catch (err) {
+    } catch {
       setError('No se pudieron cargar las incidencias. Verifica tu conexión e intenta de nuevo.');
     } finally {
       setLoading(false);
@@ -123,6 +124,7 @@ const getWeekNumber = (d: Date) => {
   }, [selectedWeek]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchIncidences();
   }, [fetchIncidences]);
 

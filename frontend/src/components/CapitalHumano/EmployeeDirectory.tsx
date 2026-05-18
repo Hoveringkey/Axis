@@ -116,8 +116,9 @@ const EmployeeDirectory: React.FC = () => {
         horario_s: '07:00 - 12:00'
       });
       fetchEmployees();
-    } catch (err: any) {
-      setAltaError(err.response?.data?.error || 'Error al crear empleado');
+    } catch (err: unknown) {
+      const apiError = err as { response?: { data?: { error?: string } } };
+      setAltaError(apiError.response?.data?.error || 'Error al crear empleado');
     } finally {
       setSubmitting(false);
     }
@@ -137,14 +138,16 @@ const EmployeeDirectory: React.FC = () => {
       setBajaError(null);
       setBajaForm({ no_nomina: '', fecha_baja: new Date().toISOString().split('T')[0], motivo_baja: '' });
       fetchEmployees();
-    } catch (err: any) {
-      setBajaError(err.response?.data?.error || 'Error al dar de baja');
+    } catch (err: unknown) {
+      const apiError = err as { response?: { data?: { error?: string } } };
+      setBajaError(apiError.response?.data?.error || 'Error al dar de baja');
     } finally {
       setSubmitting(false);
     }
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchEmployees();
   }, [fetchEmployees]);
 

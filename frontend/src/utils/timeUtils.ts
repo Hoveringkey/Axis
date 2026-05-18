@@ -11,12 +11,12 @@ export const formatTimeRange = (input: string): string => {
 
   const formatTime = (time: string, isEnd: boolean, startTimeHour?: number): string => {
     // Handle cases like "08:00", "8:30", "8"
-    let [hours, minutes] = time.split(':').map(p => p?.trim());
+    const [hours, minutes] = time.split(':').map(p => p?.trim());
     
     if (!hours) return time;
     
     let h = parseInt(hours, 10);
-    let m = minutes ? parseInt(minutes, 10) : 0;
+    const m = minutes ? parseInt(minutes, 10) : 0;
 
     if (isNaN(h)) return time;
 

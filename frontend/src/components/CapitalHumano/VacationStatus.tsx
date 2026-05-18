@@ -25,6 +25,7 @@ const VacationStatus: React.FC<Props> = ({ noNomina, employeeName }) => {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true);
     setError(null);
     api

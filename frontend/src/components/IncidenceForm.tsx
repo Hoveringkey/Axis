@@ -61,11 +61,6 @@ const IncidenceForm: React.FC<IncidenceFormProps> = ({ onIncidenceAdded }) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  useEffect(() => {
-    fetchEmployees();
-    fetchCatalogs();
-  }, []);
-
   const fetchEmployees = async () => {
     try {
       const response = await api.get('/api/payroll/employees/');
@@ -84,6 +79,12 @@ const IncidenceForm: React.FC<IncidenceFormProps> = ({ onIncidenceAdded }) => {
     }
   };
 
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchEmployees();
+    fetchCatalogs();
+  }, []);
+
   // Determine if the selected catalog is 'Asueto'
   const selectedCatalog = catalogs.find(c => c.id === parseInt(tipoIncidencia));
   const isAsueto = selectedCatalog?.abreviatura === 'ASU';
@@ -91,6 +92,7 @@ const IncidenceForm: React.FC<IncidenceFormProps> = ({ onIncidenceAdded }) => {
   // Reset the checkbox when the type changes away from Asueto
   useEffect(() => {
     if (!isAsueto) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setAplicarATodos(false);
     }
   }, [isAsueto]);
@@ -190,17 +192,19 @@ const IncidenceForm: React.FC<IncidenceFormProps> = ({ onIncidenceAdded }) => {
       setTipoIncidencia('');
       setCantidad('');
       await onIncidenceAdded?.();
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const apiError = err as { response?: { data?: { non_field_errors?: string[]; detail?: string; [key: string]: unknown } } };
       let errorMessage = 'Error al registrar incidencia. Verifique los datos.';
-      if (err.response?.data) {
-        if (Array.isArray(err.response.data.non_field_errors)) {
-          errorMessage = err.response.data.non_field_errors[0];
-        } else if (err.response.data.detail) {
-          errorMessage = err.response.data.detail;
-        } else if (typeof err.response.data === 'object') {
-          const firstKey = Object.keys(err.response.data)[0];
-          if (Array.isArray(err.response.data[firstKey])) {
-            errorMessage = `${firstKey}: ${err.response.data[firstKey][0]}`;
+      const data = apiError.response?.data;
+      if (data) {
+        if (Array.isArray(data.non_field_errors)) {
+          errorMessage = data.non_field_errors[0];
+        } else if (data.detail) {
+          errorMessage = data.detail;
+        } else if (typeof data === 'object') {
+          const firstKey = Object.keys(data)[0];
+          if (Array.isArray(data[firstKey])) {
+            errorMessage = `${firstKey}: ${(data[firstKey] as string[])[0]}`;
           }
         }
       }

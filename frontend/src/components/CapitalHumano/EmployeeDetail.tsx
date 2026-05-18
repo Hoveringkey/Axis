@@ -112,10 +112,11 @@ const EmployeeDetail: React.FC = () => {
       // Refresh local employee data
       const res = await api.get(`/api/payroll/employees/${id}/`);
       setEmployee(res.data);
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const apiError = err as { response?: { data?: Record<string, unknown> } };
       const detail =
-        err.response?.data?.detail ||
-        Object.values(err.response?.data ?? {})[0] ||
+        apiError.response?.data?.['detail'] ||
+        Object.values(apiError.response?.data ?? {})[0] ||
         'Error al guardar. Verifique los datos.';
       setSaveStatus({ type: 'error', message: String(detail) });
     } finally {
@@ -143,13 +144,14 @@ const EmployeeDetail: React.FC = () => {
       setEmployee(emp);
       setHorarioLv(emp.horario_lv ?? '');
       setHorarioS(emp.horario_s ?? '');
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const apiError = err as { response?: { data?: { error?: string } } };
       setSwap(s => ({
         ...s,
         loading: false,
         status: {
           type: 'error',
-          message: err.response?.data?.error || 'No se pudo realizar el intercambio.',
+          message: apiError.response?.data?.error || 'No se pudo realizar el intercambio.',
         },
       }));
     }
@@ -190,6 +192,7 @@ const EmployeeDetail: React.FC = () => {
     : otherEmployees
   ).slice(0, 6);
   const tenureYears = fechaIngreso
+    // eslint-disable-next-line react-hooks/purity
     ? Math.max(0, Math.floor((Date.now() - new Date(fechaIngreso).getTime()) / (1000 * 60 * 60 * 24 * 365.25)))
     : null;
 

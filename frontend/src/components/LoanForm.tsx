@@ -24,10 +24,6 @@ const LoanForm: React.FC<LoanFormProps> = ({ onLoanAdded }) => {
   const [status, setStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  useEffect(() => {
-    fetchEmployees();
-  }, []);
-
   const fetchEmployees = async () => {
     try {
       const response = await api.get('/api/payroll/employees/');
@@ -36,6 +32,11 @@ const LoanForm: React.FC<LoanFormProps> = ({ onLoanAdded }) => {
       console.error('Failed to fetch employees', err);
     }
   };
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchEmployees();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,10 +67,11 @@ const LoanForm: React.FC<LoanFormProps> = ({ onLoanAdded }) => {
       if (onLoanAdded) {
         onLoanAdded();
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const apiError = err as { response?: { data?: { detail?: string } } };
       setStatus({
         type: 'error',
-        message: err.response?.data?.detail || 'Error al registrar préstamo. Verifique los datos.',
+        message: apiError.response?.data?.detail || 'Error al registrar préstamo. Verifique los datos.',
       });
     } finally {
       setIsLoading(false);

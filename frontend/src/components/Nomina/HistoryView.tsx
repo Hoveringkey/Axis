@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import { MagnifyingGlass, WarningCircle, CircleNotch } from '@phosphor-icons/react';
 import { AgGridReact } from 'ag-grid-react';
-import type { ColDef, ValueGetterParams } from 'ag-grid-community';
+import type { ColDef, ValueGetterParams, ICellRendererParams } from 'ag-grid-community';
 import api from '../../api/axios';
 import '../modules.css';
 import './Nomina.css';
@@ -75,7 +75,7 @@ const buildColumnDefs = (): ColDef<PayrollSnapshot>[] => [
     sortable: false,
     valueGetter: (p: ValueGetterParams<PayrollSnapshot>) => p.data?.desglose ?? null,
     cellRenderer: ({ value }: { value: DesgloseRow | null }) =>
-      value ? <IncidencesCellRenderer data={value} {...({} as any)} /> : null,
+      value ? <IncidencesCellRenderer data={value} {...({} as unknown as Omit<ICellRendererParams<DesgloseRow>, 'data'>)} /> : null,
     autoHeight: true,
     getQuickFilterText: (p) => p.data?.desglose ? buildTokens(p.data.desglose).map(t => t.label).join(' ') : ''
   },

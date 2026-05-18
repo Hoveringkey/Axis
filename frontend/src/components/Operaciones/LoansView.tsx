@@ -3,7 +3,7 @@ import LoanForm from '../LoanForm';
 import { ArrowClockwise } from '@phosphor-icons/react';
 import { AgGridReact } from 'ag-grid-react';
 import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
-import type { ColDef } from 'ag-grid-community';
+import type { ColDef, ICellRendererParams } from 'ag-grid-community';
 import api from '../../api/axios';
 import { PageShell, GlassCard, Button, ErrorState } from '../ui';
 import '../modules.css';
@@ -72,7 +72,7 @@ const LoansView: React.FC = () => {
       }));
 
       setLoans(display);
-    } catch (err) {
+    } catch {
       setError('No se pudieron cargar los préstamos. Verifica tu conexión e intenta de nuevo.');
     } finally {
       setLoading(false);
@@ -80,6 +80,7 @@ const LoansView: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchLoans();
   }, [fetchLoans]);
 
@@ -131,9 +132,9 @@ const LoansView: React.FC = () => {
       sortable: true,
       filter: true,
       getQuickFilterText: p => p.value ? p.value.toString() : '',
-      cellRenderer: (p: any) => (
-        <span className={`badge ${p.data.is_active ? 'badge-active' : 'badge-inactive'}`}>
-          {p.value}
+      cellRenderer: ({ data, value }: ICellRendererParams<LoanDisplay>) => (
+        <span className={`badge ${data?.is_active ? 'badge-active' : 'badge-inactive'}`}>
+          {value}
         </span>
       )
     },

@@ -1,3 +1,6 @@
+/* eslint-disable react-refresh/only-export-components */
+// This file intentionally mixes AG-Grid cell renderers with shared helper functions.
+
 /**
  * GridRenderers.tsx
  *

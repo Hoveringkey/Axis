@@ -246,10 +246,16 @@ class IncidenceRecordViewSet(viewsets.ModelViewSet):
 
     def update(self, request, *args, **kwargs):
         self._ensure_instance_week_open(self.get_object())
+        if 'fecha' in request.data:
+            # _coerce_fecha returns None for malformed input; _ensure_payload_week_open
+            # is a no-op in that case so the serializer can surface 400.
+            self._ensure_payload_week_open(self._coerce_fecha(request.data.get('fecha')))
         return super().update(request, *args, **kwargs)
 
     def partial_update(self, request, *args, **kwargs):
         self._ensure_instance_week_open(self.get_object())
+        if 'fecha' in request.data:
+            self._ensure_payload_week_open(self._coerce_fecha(request.data.get('fecha')))
         return super().partial_update(request, *args, **kwargs)
 
     def destroy(self, request, *args, **kwargs):

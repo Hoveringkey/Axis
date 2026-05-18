@@ -324,3 +324,51 @@ class IncidenceRecordClosureGuardTests(APITestCase):
             'fecha': CLOSED_WEEK_DATE.isoformat(),
         }, format='json')
         self.assertEqual(resp.status_code, status.HTTP_409_CONFLICT)
+
+    # ── Cross-week mutation guard: payload fecha into a closed week ─────────
+
+    def test_patch_changing_fecha_to_closed_week_returns_409(self):
+        """PATCH on an open-week record that re-targets fecha into a closed week → 409."""
+        self.client.force_authenticate(self.hr_user)
+        resp = self.client.patch(
+            f'{self.base_url}{self.open_record.id}/',
+            {'fecha': CLOSED_WEEK_DATE.isoformat()},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, status.HTTP_409_CONFLICT)
+
+    def test_put_changing_fecha_to_closed_week_returns_409(self):
+        """PUT on an open-week record that re-targets fecha into a closed week → 409."""
+        self.client.force_authenticate(self.hr_user)
+        resp = self.client.put(
+            f'{self.base_url}{self.open_record.id}/',
+            {
+                'fecha': CLOSED_WEEK_DATE.isoformat(),
+                'semana_num': CLOSED_WEEK_NUM,
+                'empleado': self.employee.no_nomina,
+                'tipo_incidencia': self.catalog.id,
+                'cantidad': '1.00',
+            },
+            format='json',
+        )
+        self.assertEqual(resp.status_code, status.HTTP_409_CONFLICT)
+
+    def test_patch_changing_only_cantidad_on_open_week_succeeds(self):
+        """PATCH on an open-week record changing only `cantidad` stays 200."""
+        self.client.force_authenticate(self.hr_user)
+        resp = self.client.patch(
+            f'{self.base_url}{self.open_record.id}/',
+            {'cantidad': '0.75'},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+
+    def test_patch_with_invalid_fecha_returns_400_not_409(self):
+        """Malformed `fecha` in payload falls through to serializer → 400, not 409."""
+        self.client.force_authenticate(self.hr_user)
+        resp = self.client.patch(
+            f'{self.base_url}{self.open_record.id}/',
+            {'fecha': 'not-a-date'},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
